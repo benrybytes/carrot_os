@@ -1,0 +1,16 @@
+[package]
+name = "operating_system"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bootloader = "0.9"
+
+
+# make panic exit the program instead of stack unwinding
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
