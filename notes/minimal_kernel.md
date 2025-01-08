@@ -15,7 +15,7 @@ finally 64 bit mode
 
 # using rust nightly
 
-be able to test official released features
+be able to test unofficial released features
 
 ```sh
 rustup override set nightly
@@ -62,6 +62,7 @@ cause conflict in our host and custom OS
 
 essentially, it calls another 128-byte stack for exceptions, but cannot handle together
 with our OS and userspace at the same time, so we want to make OS independent
+from host exception handling
 
 ```json
 "disable-redzone": true,
@@ -126,11 +127,12 @@ build-std = ["core", "compiler_builtins"]
 these crates libraries require us to use rust's source code to access the code
 we need to recompile
 
+this component allows us to include rust's standard library source code 
 ```sh
 rustup component add rust-src
 ```
 
-we want to use nightly to compile and use the unstable.build-std feature
+we want to use nightly to compile and use the unstable.build-std feature from nightly
 
 ```sh
 cargo +nightly run --target x86_64_operating_system.json
@@ -167,7 +169,7 @@ static HELLO: &[u8] = b"Hello World!";
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    let vga_buffer = 0xb8000 as *mut u8; // unsafe mutable pointer
+    let vga_buffer = 0xb8000 as *mut u8; // unsafe mutable pointer at default VGA address
 
     for (i, &byte) in HELLO.iter().enumerate() { // iterate and reference character slice
 
@@ -176,7 +178,7 @@ pub extern "C" fn _start() -> ! {
             *vga_buffer.offset(i as isize * 2) = byte;
 
             // using pointer arithmitic to set color of text
-            *vga_buffer.offset(i as isize * 2 + 1) = 0xb; // add a bit next to our character for color
+            *vga_buffer.offset(i as isize * 2 + 1) = 0xb; // add a + 1 bit next to our character for color
         }
     }
 
@@ -199,6 +201,7 @@ bootloader = "0.9"
 
 alongside, install the cargo package in your host machine, go to `~` directory
 
+
 ```sh
 cargo install bootimage
 ```
@@ -208,4 +211,41 @@ the image in a virtual machine
 
 ```sh
 rustup component add llvm-tools-preview
+```
+make sure to first build your cargo image, then you run
+
+```sh
+cargo +nightly build
+cargo bootimage
+```
+
+## using qemu after making the image
+
+after creating the image in your build directory, you can
+run it through qemu
+
+if using arch linux, you have to install the full
+qemu package for it to work
+
+```sh
+doas pacman -Sy qemu-full
+```
+
+afterwards, you can run it and a window should be displayed
+
+```sh
+qemu-system-x86_64 -drive format=raw,file=target/x86_64_operating_system/debug/bootimage-operating_system.bin
+```
+
+## running bootimage with qemu
+
+bootimage crate has a key called `runner`, in order to read the bin of the made image
+
+by targetting all files with no OS with the target os argument in configuration macro.
+Afterwards, we run the bootimage runner passing the image automatically from the build
+
+```toml
+# allows run to execute this as well
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
 ```

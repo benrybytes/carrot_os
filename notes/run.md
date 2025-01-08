@@ -21,7 +21,7 @@ fn main() {
 **language items** special functions and types required by the compiler to know, such as
 copying an item requires `#[lang = "copy"]`
 
-**stack unwinding** process in calling functions line by line, and calling **destructores**
+**stack unwinding** process in calling functions line by line, and calling **destructors**
 of local variables even after an error is thrown
 
 -   **eh personality** an example of language item that unwinds the function to free memory and
@@ -59,7 +59,7 @@ we could overwrite the `C runtime zero` using an attribute to not run the **norm
 ...
 ```
 
-alongside, we want our linker to look at another entry point instead of the `C runtime zero` entry point
+alongside, we want our **linker** to look at another entry point instead of the `C runtime zero` entry point
 
 ```rs
 #[no_mangle]
