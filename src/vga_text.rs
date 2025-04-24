@@ -192,7 +192,7 @@ macro_rules! println {
     () => (print!("\n"));
 
     // format the arguments for the current print implementation
-    ($($arg:tt)*) => (print!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
 

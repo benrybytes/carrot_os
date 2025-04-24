@@ -34,3 +34,7 @@ test-args = [
 	"-serial", "stdio", "-display", "none"]
 test-success-exit-code = 33 # (0x10 << 1) | 1;
 
+# treat tests as normal executables
+[[test]]
+name = "should_panic"
+harness = false
