@@ -9,7 +9,9 @@ build-std-features = ["compiler-builtins-mem"]
 [build]
 target = "x86_64_operating_system.json"
 
+[run]
+target = "x86_64_operating_system.json"
+
 # make this a standalone operating system
 [target.'cfg(target_os = "none")']
 runner = "bootimage runner" # use bootimage as our bootloader
-

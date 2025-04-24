@@ -4,18 +4,33 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bootloader = "0.9"
+bootloader = "0.9.8"
 spin = "0.9.8"
+uart_16550 = "0.2.0"
 volatile = "0.2.6"
+x86_64 = "0.15.2"
 
 [dependencies.lazy_static]
 version = "1.0"
 features = ["spin_no_std"]
 
 # make panic exit the program instead of stack unwinding
-[profile.dev]
-panic = "abort"
+# [profile.dev]
+# panic = "abort"
+#
+# [profile.release]
+# panic = "abort"
 
-[profile.release]
-panic = "abort"
+# [unstable]
+# panic-abort-tests = true
+
+[package.metadata.bootimage]
+# size of base and size are IO port for data bus
+# peripheral hardware: port number of devices in an address
+# isa-debug-exit: simple first bit check for error handling
+# serial allows printing to device
+test-args = [
+	"-device", "isa-debug-exit,iobase=0xf4,iosize=0x4", 
+	"-serial", "stdio", "-display", "none"]
+test-success-exit-code = 33 # (0x10 << 1) | 1;
 

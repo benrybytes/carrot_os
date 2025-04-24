@@ -1,8 +1,8 @@
 use core::fmt::Write;
 
 use lazy_static::lazy_static;
-use spin::Mutex;
-use volatile::{Volatile};
+use spin::Mutex; // who controls what piece of data, continuous sleeping
+use volatile::Volatile; // no compiler optimizations lol
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +94,7 @@ impl Writer {
             }
         }
     }
-    
+
     // move characters up one row, and finish with new line, clear
     // previous row where characters were
     pub fn new_line(&mut self) {
@@ -151,7 +151,7 @@ impl Writer {
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
-        color_code: ColorCode::new(Color::DarkGray, Color::Black),
+        color_code: ColorCode::new(Color::White, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
 }
@@ -172,9 +172,17 @@ pub fn _print_value() {
     write!(writer, "favorite numbers: {}", 42.0).unwrap();
 }
 
+#[doc(hidden)]
+pub fn _print(args: core::fmt::Arguments) {
+    use core::fmt::Write; // implemented
+    // uses is when invoking write! macro and this print is called
+    // calls our write_str method from Writer implementation of Write
+    WRITER.lock().write_fmt(args).unwrap();
+}
+
+
 #[macro_export]
 macro_rules! print {
-
     // calls _print when printing arguments
     ($($arg:tt)*) => ($crate::vga_text::_print(format_args!($($arg)*)));
 }
@@ -187,10 +195,26 @@ macro_rules! println {
     ($($arg:tt)*) => (print!("{}\n", format_args!($($arg)*)));
 }
 
-#[doc(hidden)]
-pub fn _print(args: core::fmt::Arguments) {
-    use core::fmt::Write; // implemented
-    // uses is when invoking write! macro and this print is called
-    // calls our write_str method from Writer implementation of Write
-    WRITER.lock().write_fmt(args).unwrap();
+
+#[test_case]
+fn test_println_simple() {
+    println!("testing print");
+}
+
+#[test_case]
+fn test_println_alot() {
+    for _ in 0..200 {
+        println!("listen you");
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let s = "rust is pretty cool";
+    println!("{}", s);
+    for (i, c) in s.chars().enumerate() {
+        // get a copy of the rendered character
+        let rendered_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
+        assert_eq!(char::from(rendered_char.ascii_character), c);
+    }
 }

@@ -216,6 +216,7 @@ make sure to first build your cargo image, then you run
 
 ```sh
 cargo +nightly build
+cargo update -p bootloader # make sure to do this important step to be able to use bootimage
 cargo bootimage
 ```
 

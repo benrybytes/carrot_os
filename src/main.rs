@@ -1,41 +1,91 @@
 #![no_std] // remove standard libary usage
 #![no_main] // disable all Rust entry points and define ours later
 
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
 
-// use vga_text::print_value;
 mod vga_text;
+mod serial;
+
+pub trait Testable {
+    fn run(&self) -> ();
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum QemuExitCode {
+    Success = 0x10,
+    Failed = 0x11,
+}
+
+
+// testable functions
+impl<T> Testable for T
+where T: Fn() {
+    fn run(&self) {
+        serial_print!("{}...\t", core::any::type_name::<T>()) ;
+        self();
+        serial_println!("[ok]");
+    }
+}
+
+
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    serial_println!("running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
+
+    exit_qemu(QemuExitCode::Success);
+}
+
+
+pub fn exit_qemu(exit_code: QemuExitCode) {
+    use x86_64::instructions::port::Port;
+
+    unsafe {
+        let mut port = Port::new(0xf4);
+        port.write(exit_code as u32);
+    }
+}
+
+
+#[test_case]
+fn assertion() {
+    serial_print!("testing...");
+    assert_eq!(1,1);
+    serial_print!("[ok]");
+}
+
 
 // called on panic / makes our program abort
-#[panic_handler] 
-fn panic(_info: &PanicInfo) -> ! {
+#[cfg(not(test))]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
     loop {}
 }
 
-// converting each character to a UTF-8 byte as that is what rust uses
-// static HELLO: &[u8] = b"rust is the way";
-
+// our panic handler in test mode
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    serial_println!("[failed]\n");
+    serial_println!("Error: {}\n", info);
+    exit_qemu(QemuExitCode::Failed);
+    loop {}
+}
 // don't mangle make _start be readable
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    // let vga_buffer = 0xb8000 as *mut u8; // unsafe mutable pointer
-    //
-    // for (i, &byte) in HELLO.iter().enumerate() { // iterate and reference character slice
-    //
-    //     // unsafe: we are changing the pointer value making this unsafe
-    //     // the plus one works because when we iterate, offset allows us to move the pointer and
-    //     // each iteration will move when offset is called
-    //     unsafe {
-    //         *vga_buffer.offset(i as isize * 2) = byte;
-    //
-    //         // using pointer arithmitic to set color of text
-    //         *vga_buffer.offset(i as isize * 2 + 1) = 0xc; // add a bit next to our character for color
-    //     }
-    // }
+    println!("how do you like them apples, aka rust macros{}\n\n", "!");
 
-    // print_value();
-    println!("ferris said hi{}\n\n", "!");
+    #[cfg(test)]
+    test_main();
 
     loop {}
 }
