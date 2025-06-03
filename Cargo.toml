@@ -1,10 +1,10 @@
 [package]
-name = "operating_system"
+name = "carrot_os"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bootloader = "0.9.8"
+bootloader = "0.9"
 spin = "0.9.8"
 uart_16550 = "0.2.0"
 volatile = "0.2.6"
@@ -21,8 +21,8 @@ features = ["spin_no_std"]
 # [profile.release]
 # panic = "abort"
 
-# [unstable]
-# panic-abort-tests = true
+[unstable]
+panic-abort-tests = true
 
 [package.metadata.bootimage]
 # size of base and size are IO port for data bus

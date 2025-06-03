@@ -7,10 +7,10 @@ build-std-features = ["compiler-builtins-mem"]
 
 # use the json configurations
 [build]
-target = "x86_64_operating_system.json"
+target = "x86_64_carrot_os.json"
 
 [run]
-target = "x86_64_operating_system.json"
+target = "x86_64_carrot_os.json"
 
 # make this a standalone operating system
 [target.'cfg(target_os = "none")']

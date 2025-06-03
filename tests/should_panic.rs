@@ -4,7 +4,7 @@
 
 use core::panic::PanicInfo;
 
-use operating_system::{exit_qemu, serial_println, QemuExitCode};
+use carrot_os::{exit_qemu, serial_println, QemuExitCode};
 
 // allows to confirm it did indeed failed to run
 #[panic_handler]

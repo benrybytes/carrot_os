@@ -3,11 +3,11 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
-#![test_runner(operating_system::test_runner)]
+#![test_runner(carrot_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
-use operating_system::{println, test_panic_handler};
+use carrot_os::{println, test_panic_handler};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

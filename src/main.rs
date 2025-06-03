@@ -2,10 +2,10 @@
 #![no_main] // disable all Rust entry points and define ours later
 
 #![feature(custom_test_frameworks)]
-#![test_runner(operating_system::test_runner)]
+#![test_runner(carrot_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use operating_system::println;
+use carrot_os::println;
 use core::panic::PanicInfo;
 
 // called on panic / makes our program abort
@@ -21,15 +21,22 @@ fn panic(info: &PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    operating_system::test_panic_handler(info);
+    carrot_os::test_panic_handler(info);
 }
 // don't mangle make _start be readable
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     println!("how do you like them apples, aka rust macros{}\n\n", "!");
+    
+    carrot_os::init();
+
+    // breakpoint to test if it is handled inside IDT
+    x86_64::instructions::interrupts::int3();
 
     #[cfg(test)]
     test_main();
+
+    println!("interrupt was handled");
 
     loop {}
 }
