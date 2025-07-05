@@ -6,8 +6,8 @@
 #![test_runner(carrot_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use core::panic::PanicInfo;
 use carrot_os::{println, test_panic_handler};
+use core::panic::PanicInfo;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
