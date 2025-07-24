@@ -210,6 +210,8 @@ as well as, being able to have the llvm component to allow building and previewi
 the image in a virtual machine
 
 ```sh
+# aarch64 to be able to run qemu from aarch64 to llvm
+rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
 rustup component add llvm-tools-preview
 ```
 make sure to first build your cargo image, then you run
