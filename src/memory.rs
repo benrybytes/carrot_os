@@ -1,11 +1,22 @@
 use x86_64::{
-    structures::paging::PageTable,
+    structures::paging::{PageTable, OffsetPageTable, Page, PhysFrame, Mapper, Size4KiB, FrameAllocator},
     VirtAddr,
     PhysAddr,
 };
+use bootloader::bootinfo::{MemoryMap, MemoryRegionType}; // boot info
+
+pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
+    unsafe {
+        // virtual
+        let level_4_table = active_level_4_table(physical_memory_offset);
+
+        // get physical address from level 4
+        OffsetPageTable::new(level_4_table, physical_memory_offset)
+    }
+}
 
 // unsafe method as we guarantee physical memory maps to virtual table 4
-pub unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
+unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
     -> &'static mut PageTable
 {
     use x86_64::registers::control::Cr3;
@@ -45,7 +56,7 @@ pub fn full_translate_helper(addr: VirtAddr, physical_memory_offset: VirtAddr) -
         // get entry from the current table to move to the next frame until reach 
         // table 1
         let entry = &table[index];
-        frame = match entry.frame() {
+frame = match entry.frame() {
             Ok(frame) => frame,
             Err(FrameError::FrameNotPresent) => return None,
             Err(FrameError::HugeFrame) => panic!("huge pages not supported"),
@@ -53,4 +64,71 @@ pub fn full_translate_helper(addr: VirtAddr, physical_memory_offset: VirtAddr) -
     }
 
     Some(frame.start_address() + u64::from(addr.page_offset()))
+}
+
+pub fn example_mapping(
+    page: Page,
+    mapper: &mut OffsetPageTable,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>
+) {
+    use x86_64::structures::paging::PageTableFlags as Flags;
+
+    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
+    let flags = Flags::PRESENT | Flags::WRITABLE;
+
+    let map_to_result = unsafe {
+        mapper.map_to(page, frame, flags, frame_allocator)
+    };
+
+    map_to_result.expect("map_to failed").flush();
+
+}
+
+pub struct EmptyFrameAllocator;
+
+// allocate pages
+unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame> { None }
+}
+
+// usable frames by bootloader's memory map
+pub struct BootInfoFrameAllocator {
+    memory_map: &'static MemoryMap,
+    next: usize,
+}
+
+impl BootInfoFrameAllocator {
+    // caller guarantees memory map is valid
+    pub unsafe fn init( memory_map: &'static MemoryMap) -> Self {
+        BootInfoFrameAllocator {
+            memory_map,
+            next: 0, // how many frames we have allocated
+        }
+    }
+
+    // get iterator for usable frames by memory map
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
+        // use pages in memory map to map for usable regions of memory in the frames of the
+        // physical memory that get mapped as usable
+        let regions = self.memory_map.iter();
+        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
+
+        // get the start address of each frame, regardless of level, just get all frames
+        let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
+
+        // choose every 4096, as we want the first frame of each page to be selected, reminder
+        // there are multi-level pages
+        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
+
+        frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+    }
+}
+
+unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+    // fetch a new frame on physical, so we could use it
+    fn allocate_frame(&mut self) -> Option<PhysFrame> {
+        let frame = self.usable_frames().nth(self.next);
+        self.next += 1;
+        frame
+    }
 }

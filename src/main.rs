@@ -27,8 +27,8 @@ entry_point!(kernel_main);
 
 // don't mangle make _start be readable
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use carrot_os::memory::translate_addr;
-    use x86_64::VirtAddr;
+    use carrot_os::memory;
+    use x86_64::{structures::paging::Translate, VirtAddr, structures::paging::Page};
 
     // println!("how do you like them apples, aka rust macros{}\n\n", "!");
     println!("hello world");
@@ -48,22 +48,27 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         // virtual address mapped to physical address 0
         boot_info.physical_memory_offset,
     ];
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    // let mut frame_allocator = memory::EmptyFrameAllocator;
+    // reminder: we guarantee memory_map is valid
+    let mut frame_allocator = unsafe {
+        memory::BootInfoFrameAllocator::init(&boot_info.memory_map)
+    };
 
-    for &address in &addresses {
-        let virt = VirtAddr::new(address);
-        let phys = unsafe { translate_addr(virt, phys_mem_offset) };
-        println!("{:?} -> {:?}", virt, phys);
+    // map unused page from somewhere | worse case scenario will create level >1 pages if missing
+    let page = Page::containing_address(VirtAddr::new(0));
+    memory::example_mapping(page, &mut mapper, &mut frame_allocator);
+
+    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
+    unsafe {
+        page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e);
     }
-    
-    // let l4_table = unsafe { active_level_4_table(phys_mem_offset) };
-    //
-    // for(i, entry) in l4_table.iter().enumerate() {
-    //     if !entry.is_unused() {
-    //         println!("L4 entry {}: {:?}", i, entry);
-    //     }
+
+    // for &address in &addresses {
+    //     let virt = VirtAddr::new(address);
+    //     let phys = mapper.translate_addr(virt); // handles large pages
+    //     println!("{:?} -> {:?}", virt, phys);
     // }
-
-
 
     #[cfg(test)]
     test_main();
