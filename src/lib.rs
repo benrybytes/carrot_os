@@ -8,6 +8,8 @@
 #[cfg(test)]
 use bootloader::{entry_point, BootInfo};
 
+extern crate alloc;
+
 #[cfg(test)]
 entry_point!(test_kernel_main);
 
@@ -17,6 +19,7 @@ pub mod interrupts;
 pub mod serial;
 pub mod vga_text;
 pub mod memory;
+pub mod allocator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]

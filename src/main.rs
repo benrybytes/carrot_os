@@ -8,6 +8,9 @@ use carrot_os::println;
 use core::panic::PanicInfo;
 use bootloader::{entry_point, BootInfo};
 
+extern crate alloc; // import again to not 
+use alloc::boxed::Box;
+
 // called on panic / makes our program abort
 #[cfg(not(test))]
 #[panic_handler]
@@ -27,7 +30,7 @@ entry_point!(kernel_main);
 
 // don't mangle make _start be readable
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use carrot_os::memory;
+    use carrot_os::{memory, allocator};
     use x86_64::{structures::paging::Translate, VirtAddr, structures::paging::Page};
 
     // println!("how do you like them apples, aka rust macros{}\n\n", "!");
@@ -63,6 +66,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     unsafe {
         page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e);
     }
+    
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap allocation failed");
+
+    let heap_value = Box::new(40);
+    println!("heap_value at {:p}", heap_value);
 
     // for &address in &addresses {
     //     let virt = VirtAddr::new(address);
