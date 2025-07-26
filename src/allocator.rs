@@ -10,6 +10,9 @@ use x86_64::{
 };
 
 pub mod bump;
+pub mod fixed_size_block;
+
+use fixed_size_block::FixedSizeBlockAllocator;
 
 pub struct Locked<A> {
     inner: spin::Mutex<A>
@@ -90,4 +93,5 @@ fn align_up(addr: usize, align: usize) -> usize {
 // static ALLOCATOR: DummyAlloc = DummyAlloc;
 // spinlock to prevent deadlocks | no memory, but fill later
 // static ALLOCATOR: LockedHeap = LockedHeap::empty();
-static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+// static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
