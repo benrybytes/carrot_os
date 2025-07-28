@@ -20,6 +20,7 @@ pub mod serial;
 pub mod vga_text;
 pub mod memory;
 pub mod allocator;
+pub mod task;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
