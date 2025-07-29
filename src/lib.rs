@@ -4,6 +4,7 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(abi_x86_interrupt)]
+#![feature(never_type)]
 
 #[cfg(test)]
 use bootloader::{entry_point, BootInfo};
@@ -72,6 +73,10 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
+
+    // allow CPU to detect interrupts in sti instruction
+    unsafe { interrupts::PICS.lock().initialize() };
+    x86_64::instructions::interrupts::enable();
 }
 
 // halt cpu until next interrupt arrives

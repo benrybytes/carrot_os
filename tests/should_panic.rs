@@ -16,10 +16,11 @@ fn panic(_info: &PanicInfo) -> ! {
 
 fn fail() {
     serial_println!("should_panic::should_fail...\t");
-    assert_eq!(1, 1);
+    assert_eq!(1, 0);
 }
 
 // be able to run without making it a test case
+#[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     fail();
     serial_println!("[test did not panic]");

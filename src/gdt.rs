@@ -19,6 +19,7 @@ lazy_static! {
 
             let stack_start = VirtAddr::from_ptr(&raw const STACK);
             #[warn(clippy::let_and_return)]
+            // let stack_end = stack_start + STACK_SIZE;
             let stack_end = stack_start + STACK_SIZE.try_into().unwrap();
             stack_end
         };
@@ -34,6 +35,8 @@ lazy_static! {
         let code_selector = gdt.append(Descriptor::kernel_code_segment());
         let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
 
+        // let code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
+        // let tss_selector = gdt.add_entry(Descriptor::tss_segment(&TSS));
         (gdt, Selectors { code_selector, tss_selector })
     };
 }

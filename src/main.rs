@@ -34,26 +34,14 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use carrot_os::{memory, allocator};
     use x86_64::{structures::paging::Translate, VirtAddr, structures::paging::Page};
 
-    // println!("how do you like them apples, aka rust macros{}\n\n", "!");
     println!("hello world");
 
     carrot_os::init();
 
     // starting point / Cr3 pointer to our memory address
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    
-    let addresses = [
-        // the identity-mapped vga buffer page
-        0xb8000,
-        // some code page
-        0x201008,
-        // some stack page
-        0x0100_0020_1a10,
-        // virtual address mapped to physical address 0
-        boot_info.physical_memory_offset,
-    ];
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    // let mut frame_allocator = memory::EmptyFrameAllocator;
+
     // reminder: we guarantee memory_map is valid
     let mut frame_allocator = unsafe {
         memory::BootInfoFrameAllocator::init(&boot_info.memory_map)
@@ -73,21 +61,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let heap_value = Box::new(40);
     println!("heap_value at {:p}", heap_value);
 
-    // for &address in &addresses {
-    //     let virt = VirtAddr::new(address);
-    //     let phys = mapper.translate_addr(virt); // handles large pages
-    //     println!("{:?} -> {:?}", virt, phys);
-    // }
-
     let mut executor = SimpleExecutor::new();
     executor.spawn(Task::new(example_task()));
-    // executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(example_task()));
     executor.run();
+
+    // stack_overflow();
 
     #[cfg(test)]
     test_main();
-
-    println!("interrupt was handled");
 
     carrot_os::hlt_loop();
 }
@@ -99,4 +81,10 @@ async fn async_number() -> u32 {
 async fn example_task() {
     let number = async_number().await;
     println!("async number :3 {}", number);
+}
+
+#[allow(unconditional_recursion)]
+fn stack_overflow() {
+    stack_overflow(); // for each recursion, the return address is pushed
+    volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
 }
