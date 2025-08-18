@@ -33,7 +33,7 @@ entry_point!(kernel_main);
 // don't mangle make _start be readable
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use carrot_os::{memory, allocator};
-    use x86_64::{structures::paging::Translate, VirtAddr, structures::paging::Page};
+    use x86_64::{VirtAddr, structures::paging::Page};
 
     println!("hello world");
 
@@ -62,7 +62,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let heap_value = Box::new(40);
     println!("heap_value at {:p}", heap_value);
 
-    // let mut executor = SimpleExecutor::new();
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
@@ -72,8 +71,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     test_main();
-
-    carrot_os::hlt_loop();
 }
 
 async fn async_number() -> u32 {
@@ -86,7 +83,7 @@ async fn example_task() {
 }
 
 #[allow(unconditional_recursion)]
-fn stack_overflow() {
-    stack_overflow(); // for each recursion, the return address is pushed
+fn _stack_overflow() {
+    _stack_overflow(); // for each recursion, the return address is pushed
     volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
 }

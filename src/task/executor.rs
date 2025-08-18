@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, sync::Arc};
 use alloc::task::Wake;
 use core::task::Waker;
 use crossbeam_queue::ArrayQueue;
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use core::task::{Context, Poll};
 
 struct TaskWaker {
     task_id: TaskId,
@@ -65,7 +65,7 @@ impl Executor {
     }
 
     fn sleep_if_idle(&self) {
-        use x86_64::instructions::interrupts::{self, enable_and_hlt};
+        use x86_64::instructions::interrupts;
 
         interrupts::disable(); // disable any interrupts than can happen here
         if self.tasks.is_empty() {

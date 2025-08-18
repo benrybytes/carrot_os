@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "autocfg"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "bit_field"
@@ -47,7 +47,7 @@ dependencies = [
  "spin",
  "uart_16550",
  "volatile 0.2.7",
- "x86_64 0.15.2",
+ "x86_64",
 ]
 
 [[package]]
@@ -67,9 +67,9 @@ checksum = "654fb2472cc369d311c547103a1fa81d467bef370ae7a0680f65939895b1182a"
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.12"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
+checksum = "df0346b5d5e76ac2fe4e327c5fd1118d6be7c51dfb18f9b7922923f287471e35"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -144,7 +144,7 @@ version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb844b5b01db1e0b17938685738f113bfc903846f18932b378bc0eabfa40e194"
 dependencies = [
- "x86_64 0.14.13",
+ "x86_64",
 ]
 
 [[package]]
@@ -197,7 +197,7 @@ checksum = "614ff2a87880d4bd4374722268598a970bbad05ced8bf630439417347254ab2e"
 dependencies = [
  "bitflags 1.3.2",
  "rustversion",
- "x86_64 0.14.13",
+ "x86_64",
 ]
 
 [[package]]
@@ -217,18 +217,6 @@ name = "x86_64"
 version = "0.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c101112411baafbb4bf8d33e4c4a80ab5b02d74d2612331c61e8192fc9710491"
-dependencies = [
- "bit_field",
- "bitflags 2.9.1",
- "rustversion",
- "volatile 0.4.6",
-]
-
-[[package]]
-name = "x86_64"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f042214de98141e9c8706e8192b73f56494087cc55ebec28ce10f26c5c364ae"
 dependencies = [
  "bit_field",
  "bitflags 2.9.1",

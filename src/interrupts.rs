@@ -1,7 +1,4 @@
-
-#![feature(abi_x86_interrupt)]
-
-use crate::{gdt, println, hlt_loop, print};
+use crate::{gdt, println, hlt_loop};
 use core::mem;
 use lazy_static::lazy_static; // runtime statics
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
@@ -24,7 +21,6 @@ impl InterruptIndex {
 
     fn as_usize(self) -> usize {
         self as u8 as usize
-        // usize::from(self.as_u8())
     }
 }
 
@@ -41,9 +37,9 @@ lazy_static! {
             ) 
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
         }
-        idt[InterruptIndex::Timer.as_u8()]
+        idt[InterruptIndex::Timer.as_usize()]
             .set_handler_fn(timer_interrupt_handler);
-        idt[InterruptIndex::Keyboard.as_u8()]
+        idt[InterruptIndex::Keyboard.as_usize()]
             .set_handler_fn(keyboard_interrupt_handler);
 
         idt.breakpoint.set_handler_fn(breakpoint_handler);
@@ -88,7 +84,7 @@ pub static PICS: spin::Mutex<ChainedPics> =
 extern "x86-interrupt" fn keyboard_interrupt_handler(
     _stack_frame: InterruptStackFrame)
 {
-    use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+    use pc_keyboard::{layouts, HandleControl, Keyboard, ScancodeSet1};
     use spin::Mutex;
     use x86_64::instructions::port::Port;
 
@@ -99,7 +95,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
             );
     }
 
-    let mut keyboard = KEYBOARD.lock();
     let mut port = Port::new(0x60);
 
     let scancode: u8 = unsafe { port.read() };

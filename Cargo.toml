@@ -4,18 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bootloader = {version = "0.9", features = ["map_physical_memory"]}
+bootloader = {version = "0.9.8", features = ["map_physical_memory"]}
 spin = "0.9.8"
 uart_16550 = "0.2.0"
 volatile = "0.2.6"
-x86_64 = "0.15.2"
+x86_64 = "0.14.2"
 linked_list_allocator = "0.9.0"
 pic8259 = "0.10.1"
 pc-keyboard = "0.7.0"
 
 # OnceCell uninitialization
 [dependencies.crossbeam-queue]
-version = "0.3.11"
+version = "=0.3.11"
 default-features = false
 features = ["alloc"]
 
