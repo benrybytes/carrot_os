@@ -41,6 +41,7 @@ dependencies = [
  "crossbeam-queue",
  "futures-util",
  "lazy_static",
+ "limine",
  "linked_list_allocator",
  "pc-keyboard",
  "pic8259",
@@ -111,6 +112,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
  "spin",
+]
+
+[[package]]
+name = "limine"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af6d2ee42712e7bd2c787365cd1dab06ef59a61becbf87bec7b32b970bd2594b"
+dependencies = [
+ "bitflags 2.9.1",
 ]
 
 [[package]]

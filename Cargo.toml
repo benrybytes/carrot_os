@@ -12,6 +12,7 @@ x86_64 = "0.14.2"
 linked_list_allocator = "0.9.0"
 pic8259 = "0.10.1"
 pc-keyboard = "0.7.0"
+limine = "0.5.0"
 
 # OnceCell uninitialization
 [dependencies.crossbeam-queue]

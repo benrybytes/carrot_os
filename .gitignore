@@ -1,2 +1,7 @@
 /target
 Cargo.lock
+/ovmf
+/limine
+
+carrot_os
+x86_64_carrot_os.iso

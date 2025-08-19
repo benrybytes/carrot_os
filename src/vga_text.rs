@@ -152,7 +152,7 @@ lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::White, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        buffer: unsafe { &mut *(0xffffffff800b8000 as *mut Buffer) },
     });
 }
 
@@ -164,7 +164,8 @@ pub fn _print_value() {
         // create a reference to a pointer available
         // for the whole program and won't get dropped
         // until program ends and no function can
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer)}
+        // buffer: unsafe { &mut *(0xb8000 as *mut Buffer)}
+        buffer: unsafe { &mut *(0xffffffff800b8000 as *mut Buffer)}
     };
 
     writer.write_string("testing");
