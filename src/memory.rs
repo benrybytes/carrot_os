@@ -3,7 +3,8 @@ use x86_64::{
     VirtAddr,
     PhysAddr,
 };
-use bootloader::bootinfo::{MemoryMap, MemoryRegionType}; // boot info
+// use bootloader::bootinfo::{MemoryMap, MemoryRegionType}; // boot info
+use limine::memory_map::{Entry, EntryType};
 
 pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
     unsafe {
@@ -56,7 +57,7 @@ pub fn full_translate_helper(addr: VirtAddr, physical_memory_offset: VirtAddr) -
         // get entry from the current table to move to the next frame until reach 
         // table 1
         let entry = &table[index];
-frame = match entry.frame() {
+        frame = match entry.frame() {
             Ok(frame) => frame,
             Err(FrameError::FrameNotPresent) => return None,
             Err(FrameError::HugeFrame) => panic!("huge pages not supported"),
@@ -66,22 +67,9 @@ frame = match entry.frame() {
     Some(frame.start_address() + u64::from(addr.page_offset()))
 }
 
-pub fn example_mapping(
-    page: Page,
-    mapper: &mut OffsetPageTable,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>
-) {
-    use x86_64::structures::paging::PageTableFlags as Flags;
-
-    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
-    let flags = Flags::PRESENT | Flags::WRITABLE;
-
-    let map_to_result = unsafe {
-        mapper.map_to(page, frame, flags, frame_allocator)
-    };
-
-    map_to_result.expect("map_to failed").flush();
-
+extern "C" {
+    static _kernel_end: u8;
+    static _kernel_start: u8;
 }
 
 pub struct EmptyFrameAllocator;
@@ -92,39 +80,32 @@ unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
 }
 
 // usable frames by bootloader's memory map
-pub struct BootInfoFrameAllocator {
-    memory_map: &'static MemoryMap,
+pub struct BootInfoFrameAllocator<'a> {
+    memory_map: &'a [&'a Entry],
+    offset: usize,
     next: usize,
 }
 
-impl BootInfoFrameAllocator {
-    // caller guarantees memory map is valid
-    pub unsafe fn init( memory_map: &'static MemoryMap) -> Self {
+impl<'a> BootInfoFrameAllocator<'a> {
+    pub unsafe fn init(memory_map: &'a [&'a Entry], offset: usize) -> Self {
         BootInfoFrameAllocator {
             memory_map,
-            next: 0, // how many frames we have allocated
+            offset,
+            next: 0,
         }
     }
 
-    // get iterator for usable frames by memory map
-    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
-        // use pages in memory map to map for usable regions of memory in the frames of the
-        // physical memory that get mapped as usable
-        let regions = self.memory_map.iter();
-        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
-
-        // get the start address of each frame, regardless of level, just get all frames
-        let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
-
-        // choose every 4096, as we want the first frame of each page to be selected, reminder
-        // there are multi-level pages
-        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
-
-        frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
+        let kernel_start = unsafe { &_kernel_start as *const u8 as usize } - self.offset;
+        self.memory_map
+            .iter()
+            .filter(move |entry| { entry.entry_type == EntryType::USABLE })
+            .flat_map(|r| (r.base..(r.base + r.length)).step_by(4096))
+            .map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
     }
 }
 
-unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+unsafe impl<'a> FrameAllocator<Size4KiB> for BootInfoFrameAllocator<'a> {
     // fetch a new frame on physical, so we could use it
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
         let frame = self.usable_frames().nth(self.next);

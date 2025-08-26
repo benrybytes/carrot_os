@@ -7,14 +7,13 @@
 
 extern crate alloc;
 
-use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use carrot_os::allocator::HEAP_SIZE;
+use carrot_os::allocator::_heap_size;
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 
-entry_point!(main);
-
-fn main(boot_info: &'static BootInfo) -> ! {
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn kmain() -> ! {
     use carrot_os::allocator;
     use carrot_os::memory::{self, BootInfoFrameAllocator};
     use x86_64::VirtAddr;
@@ -64,9 +63,11 @@ fn many_boxes() {
 #[test_case]
 fn many_boxes_long_lived() {
     let long_lived = Box::new(1);
-    for i in 0..HEAP_SIZE {
-        let x = Box::new(i);
-        assert_eq!(*x, i);
+    unsafe {
+        for i in 0.._heap_size {
+            let x = Box::new(i);
+            assert_eq!(*x, i);
+        }
     }
     assert_eq!(*long_lived, 1); // check if lived until end of program by reusing previous memory
 }

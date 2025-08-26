@@ -12,7 +12,8 @@ $(call USER_VARIABLE,KARCH,x86_64)
 $(call USER_VARIABLE,QEMUFLAGS,-m 2G) # start at 2G as we stated in the linker
 
 # override IMAGE_NAME := carrot_os-$(KARCH)
-override IMAGE_NAME := $(KARCH)_carrot_os
+override IMAGE_NAME := $(KARCH)-carrot_os
+
 
 .PHONY: all
 all: $(IMAGE_NAME).iso
@@ -33,6 +34,7 @@ run-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-$(KARCH).fd,readonly=on \
 		-drive if=pflash,unit=1,format=raw,file=ovmf/ovmf-vars-$(KARCH).fd \
 		-cdrom $(IMAGE_NAME).iso \
+		-serial stdio \
 		$(QEMUFLAGS)
 		# -serial stdio -d int -no-reboot \
 

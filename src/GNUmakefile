@@ -14,7 +14,7 @@ $(call USER_VARIABLE,KARCH,x86_64)
 
 ifeq ($(RUST_TARGET),)
     # override RUST_TARGET := $(KARCH)-unknown-none
-    override RUST_TARGET := x86_64_carrot_os
+    override RUST_TARGET := x86_64-carrot_os
 
 	ifeq ($(KARCH),riscv64)
     	override RUST_TARGET := riscv64gc-unknown-none-elf

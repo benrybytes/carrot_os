@@ -27,16 +27,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
-name = "bootloader"
-version = "0.9.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "974e79cf1b0b737839f01330fb5393095daf1124d52693696494e32523ae9ef5"
-
-[[package]]
 name = "carrot_os"
 version = "0.1.0"
 dependencies = [
- "bootloader",
  "conquer-once",
  "crossbeam-queue",
  "futures-util",

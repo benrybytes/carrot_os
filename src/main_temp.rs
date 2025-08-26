@@ -5,7 +5,6 @@
 #![reexport_test_harness_main = "test_main"]
 use core::arch::asm;
 
-
 use carrot_os::{println, serial_print};
 use core::panic::PanicInfo;
 use bootloader::BootInfo;

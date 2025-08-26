@@ -6,13 +6,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(never_type)]
 
-#[cfg(test)]
-use bootloader::{entry_point, BootInfo};
-
 extern crate alloc;
-
-#[cfg(test)]
-entry_point!(test_kernel_main);
 
 use core::panic::PanicInfo;
 pub mod gdt;
@@ -88,7 +82,7 @@ pub fn hlt_loop() -> ! {
 
 /// Entry point for `cargo test`
 #[cfg(test)]
-fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
+unsafe extern "C" fn kmain() -> ! {
     // like before
     init();
     test_main();

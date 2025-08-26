@@ -1,7 +1,11 @@
-
 OUTPUT_FORMAT(elf64-x86-64)
 
 ENTRY(kmain)
+
+/* MEMORY */
+/* { */
+/*     RAM : ORIGIN = 0x00000000, LENGTH = 512M */
+/* } */
 
 /* mmu permissions for limine */
 PHDRS {
@@ -11,44 +15,56 @@ PHDRS {
 }
 
 SECTIONS {
-	. = 0xffffffff80000000;
+    . = 0xffffffff80000000;
+    PROVIDE(_kernel_start = .);
 
-	. = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	.text : {
-		*(.text .text.*)
-	} :text
+    .text : {
+        *(.text .text.*)
+    } :text
 
-	. = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	.rodata : {
-		*(.rodata .rodata.*)
-	} :rodata
+    .rodata : {
+        *(.rodata .rodata.*)
+    } :rodata
 
-	.note.gnu.build-id : {
-		*(.note.gnu.build-id)
-	} :rodata
+    .note.gnu.build-id : {
+        *(.note.gnu.build-id)
+    } :rodata
 
-	. = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	.data : {
-		*(.data .data.*)
+    .data : {
+        *(.data .data.*)
 
-		/* place limine requests at data as we are going to initialize location inside main.rs */
+        /* place limine requests at data as we are going to initialize location inside main.rs */
         KEEP(*(.requests_start_marker))
         KEEP(*(.requests))
         KEEP(*(.requests_end_marker))
-	} :data
+    } :data
 
-	/* stack should be last because we do not want unnecessary 0's, unless we use init_array to use those 0's */
-	.bss : {
-		*(.bss .bss.*)
-		*(COMMON)
-	} :data
+    /* Stack should be last because we do not want unnecessary 0's */
+    .bss : {
+        *(.bss*)
+        *(COMMON)
+    } :data
 
-	/DISCARD/ : {
+    /* Align kernel end to page boundary and export it */
+    PROVIDE(_kernel_end = .);
+    . = ALIGN(4096);
+
+	PROVIDE(_heap_start = .);
+	PROVIDE(_heap_size = 16M);
+    .heap (NOLOAD) : {
+        . = . + _heap_size;  /* 16 MiB heap */
+    }
+	PROVIDE(_heap_end = .);
+
+    /DISCARD/ : {
         *(.eh_frame*) /* this section does not work on all hosts */
         *(.note .note.*)
     }
-
 }
+

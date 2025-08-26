@@ -3,7 +3,7 @@ use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use conquer_once::spin::OnceCell;
 use crossbeam_queue::ArrayQueue;
-use crate::{println, print};
+use crate::{println, print, serial_println, serial_print};
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::{task::AtomicWaker, stream::Stream};
 
@@ -16,12 +16,12 @@ static WAKER: AtomicWaker = AtomicWaker::new();
 pub(crate) fn add_scancode(scancode: u8) {
     if let Ok(queue) = SCANCODE_QUEUE.try_get() {
         if let Err(_) = queue.push(scancode) {
-            println!("[warning] scancode queue is full");
+            serial_println!("[warning] scancode queue is full");
         } else {
             WAKER.wake();
         }
     } else {
-        println!("[warning] scancode queue uninitialized");
+        serial_println!("[warning] scancode queue uninitialized");
     }
 }
 
@@ -67,11 +67,12 @@ pub async fn print_keypresses() {
         layouts::Us104Key, HandleControl::Ignore);
 
     while let Some(scancode) = scancodes.next().await {
+        serial_println!("yelow");
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
-                    DecodedKey::Unicode(character) => print!("{}", character),
-                    DecodedKey::RawKey(key) => print!("{:?}", key),
+                    DecodedKey::Unicode(character) => serial_print!("{}", character),
+                    DecodedKey::RawKey(key) => serial_print!("{:?}", key),
                 }
             }
         }
