@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 resolver = "2"
 
+exclude = ["vga_text.rs"]
+
 [dependencies]
 spin = "0.9.8"
 uart_16550 = "0.2.0"

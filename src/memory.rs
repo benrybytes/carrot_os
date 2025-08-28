@@ -1,5 +1,5 @@
 use x86_64::{
-    structures::paging::{PageTable, OffsetPageTable, Page, PhysFrame, Mapper, Size4KiB, FrameAllocator},
+    structures::paging::{PageTable, OffsetPageTable, PhysFrame, Size4KiB, FrameAllocator},
     VirtAddr,
     PhysAddr,
 };
@@ -82,21 +82,18 @@ unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
 // usable frames by bootloader's memory map
 pub struct BootInfoFrameAllocator<'a> {
     memory_map: &'a [&'a Entry],
-    offset: usize,
     next: usize,
 }
 
 impl<'a> BootInfoFrameAllocator<'a> {
-    pub unsafe fn init(memory_map: &'a [&'a Entry], offset: usize) -> Self {
+    pub unsafe fn init(memory_map: &'a [&'a Entry]) -> Self {
         BootInfoFrameAllocator {
             memory_map,
-            offset,
             next: 0,
         }
     }
 
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
-        let kernel_start = unsafe { &_kernel_start as *const u8 as usize } - self.offset;
         self.memory_map
             .iter()
             .filter(move |entry| { entry.entry_type == EntryType::USABLE })

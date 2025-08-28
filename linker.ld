@@ -30,6 +30,10 @@ SECTIONS {
         *(.rodata .rodata.*)
     } :rodata
 
+    .psf_font : {
+        KEEP(*(.psf_font))
+    } :rodata
+
     .note.gnu.build-id : {
         *(.note.gnu.build-id)
     } :rodata
@@ -56,7 +60,7 @@ SECTIONS {
     . = ALIGN(4096);
 
 	PROVIDE(_heap_start = .);
-	PROVIDE(_heap_size = 16M);
+	PROVIDE(_heap_size = 1M);
     .heap (NOLOAD) : {
         . = . + _heap_size;  /* 16 MiB heap */
     }

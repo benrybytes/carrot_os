@@ -13,6 +13,7 @@ target = "src/x86_64-carrot_os.json"
 rustflags = [
 	"-C", "relocation-model=static",
 	"-C", "link-arg=-Tlinker.ld",
+	"-C", "link-arg=cypr.o",
 	"-C", "code-model=kernel",
 	# "-C", "link-arg=-Ttext=0xffffffff80000000"
 ]

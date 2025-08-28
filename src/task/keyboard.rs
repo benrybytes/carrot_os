@@ -6,6 +6,7 @@ use crossbeam_queue::ArrayQueue;
 use crate::{println, print, serial_println, serial_print};
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::{task::AtomicWaker, stream::Stream};
+use pc_keyboard::ScancodeSet2;
 
 // make sure initialization occurs outside of interrupt handler
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
@@ -53,6 +54,7 @@ impl Stream for ScancodeStream {
         match queue.pop() {
             Some(queue_scancode) => {
                 WAKER.take();
+                println!{"running add scancode to the queue and running from waking"};
                 Poll::Ready(Some(queue_scancode))
             }
             None => Poll::Pending,
@@ -63,18 +65,23 @@ impl Stream for ScancodeStream {
 
 pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
-    let mut keyboard = Keyboard::new(ScancodeSet1::new(),
+    let mut keyboard = Keyboard::new(ScancodeSet2::new(),
         layouts::Us104Key, HandleControl::Ignore);
 
+    println!("get scancodes");
     while let Some(scancode) = scancodes.next().await {
-        serial_println!("yelow");
+        println!("scancode {}", scancode);
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
+            println!("key event {:?}", key_event);
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
-                    DecodedKey::Unicode(character) => serial_print!("{}", character),
-                    DecodedKey::RawKey(key) => serial_print!("{:?}", key),
+                    DecodedKey::Unicode(character) => print!("{}", character),
+                    DecodedKey::RawKey(key) => print!("{:?}", key),
                 }
             }
+        } else {
+            println!("Error adding byte for scancode: {:?}", scancode);
         }
     }
+    println!("couldn't get scancodes");
 }

@@ -63,9 +63,6 @@ pub fn init_heap(
         }
     };
 
-
-    crate::serial_println!{"success"};
-
     unsafe {
         ALLOCATOR.lock().init(heap_start as usize, heap_size as usize);
     }

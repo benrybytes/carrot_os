@@ -1,4 +1,4 @@
-use crate::{gdt, println, hlt_loop};
+use crate::{gdt, println, print, hlt_loop, serial_println};
 use core::mem;
 use lazy_static::lazy_static; // runtime statics
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
@@ -37,13 +37,12 @@ lazy_static! {
             ) 
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
         }
-        idt[InterruptIndex::Timer.as_usize()]
-            .set_handler_fn(timer_interrupt_handler);
-        idt[InterruptIndex::Keyboard.as_usize()]
-            .set_handler_fn(keyboard_interrupt_handler);
-
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);
+        idt[InterruptIndex::Keyboard.as_usize()]
+            .set_handler_fn(keyboard_interrupt_handler);
+        idt[InterruptIndex::Timer.as_usize()]
+            .set_handler_fn(timer_interrupt_handler);
 
         idt
     };
@@ -100,14 +99,14 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
     let scancode: u8 = unsafe { port.read() };
     crate::task::keyboard::add_scancode(scancode);
 
+    println!{"scancode: {}", scancode};
     unsafe {
         PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
+            .notify_end_of_interrupt(1);
     }
 }
-
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    // print!(".");
+    println!(".");
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());

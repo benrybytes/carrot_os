@@ -4,6 +4,13 @@ use lazy_static::lazy_static;
 use spin::Mutex; // who controls what piece of data, continuous sleeping
 use volatile::Volatile; // no compiler optimizations lol
 
+use x86_64::{
+    structures::paging::{
+        FrameAllocator, PageTableFlags, Mapper, Page, Size4KiB, PhysFrame
+    },
+    VirtAddr,
+    PhysAddr
+};
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -154,23 +161,6 @@ lazy_static! {
         color_code: ColorCode::new(Color::White, Color::Black),
         buffer: unsafe { &mut *(0xffffffff800b8000 as *mut Buffer) },
     });
-}
-
-pub fn _print_value() {
-    let mut writer = Writer {
-        column_position: 44, 
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
-
-        // create a reference to a pointer available
-        // for the whole program and won't get dropped
-        // until program ends and no function can
-        // buffer: unsafe { &mut *(0xb8000 as *mut Buffer)}
-        buffer: unsafe { &mut *(0xffffffff800b8000 as *mut Buffer)}
-    };
-
-    writer.write_string("testing");
-    writer.write_string("Wörld!");
-    write!(writer, "favorite numbers: {}", 42.0).unwrap();
 }
 
 #[doc(hidden)]

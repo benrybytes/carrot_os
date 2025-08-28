@@ -5,9 +5,10 @@ extern crate alloc; // import again to not
 use alloc::boxed::Box;
 
 use limine::BaseRevision;
-use limine::request::{FramebufferRequest, RequestsEndMarker, RequestsStartMarker, MemoryMapRequest, ExecutableAddressRequest, HhdmRequest};
+use limine::framebuffer::Framebuffer;
+use limine::request::{RequestsEndMarker, RequestsStartMarker, MemoryMapRequest, ExecutableAddressRequest, HhdmRequest};
 
-use carrot_os::serial_println;
+use carrot_os::{println, print};
 use core::panic::PanicInfo;
 use carrot_os::task::{Task, executor::Executor, keyboard};
 
@@ -16,9 +17,6 @@ use carrot_os::task::{Task, executor::Executor, keyboard};
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
 
-#[used]
-#[unsafe(link_section = ".requests")]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -42,11 +40,17 @@ static _START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
+extern "C" {
+    static _binary_Cyr_a8x16_psf_start: u8;
+    static _binary_Cyr_a8x16_psf_end: u8;
+    static _binary_Cyr_a8x16_psf_size: u8;
+}
+
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn kmain() -> ! {
 
-    use carrot_os::{memory, allocator};
+    use carrot_os::{memory, allocator, text};
     use x86_64::VirtAddr;
     // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
@@ -78,49 +82,30 @@ unsafe extern "C" fn kmain() -> ! {
     // ).unwrap();
     // assert_eq!(&buf, b"black smoke");
 
-    if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response() {
-        if let Some(framebuffer) = framebuffer_response.framebuffers().next() {
-            for i in 0..500_u64 {
-                // Calculate the pixel offset using the framebuffer information we obtained above.
-                // We skip `i` scanlines (pitch is provided in bytes) and add `i * 4` to skip `i` pixels forward.
-                let pixel_offset = i * framebuffer.pitch() + i * 4;
 
-                // Write 0xFFFFFFFF to the provided pixel offset to fill it white.
-                unsafe {
-                    framebuffer
-                        .addr()
-                        .add(pixel_offset as usize)
-                        .cast::<u32>()
-                        .write(0x2596beFF)
-                };
-            }
-        }
-
-    }
     if let Some(executable_address_response) = EXECUTABLE_ADDRESS_REQUEST.get_response() {
         let virtual_base = executable_address_response.virtual_base();
         let physical_base = executable_address_response.physical_base();
-        let offset = virtual_base + physical_base;
 
-        serial_println!{"offset and virtual start 0x{:x}", offset};
-        serial_println!{"physical start 0x{:x}", physical_base};
-        serial_println!{"virtual start 0x{:x}", virtual_base};
+        println!{"physical start 0x{:x}", physical_base};
+        println!{"virtual start 0x{:x}", virtual_base};
         // starting point / Cr3 pointer to our memory address
         if let Some(memory_map_response) = MEMORY_MAP_REQUEST.get_response() {
             if let Some(hddm_response) = HHDM_REQUEST.get_response() {
-                let mut mapper = unsafe { memory::init(VirtAddr::new(hddm_response.offset()))};
+                let offset = hddm_response.offset();
+                let mut mapper = unsafe { memory::init(VirtAddr::new(offset))};
                 let mut frame_allocator = unsafe {
-                    memory::BootInfoFrameAllocator::init(memory_map_response.entries(), hddm_response.offset() as usize)
+                    memory::BootInfoFrameAllocator::init(memory_map_response.entries())
                 };
-                serial_println!{"about to go to mapper"};
 
                 let _ = allocator::init_heap(&mut mapper, &mut frame_allocator).unwrap();
-                serial_println!{"allocated in mapper"};
 
+                // unsafe {
+                //     *(0xdeadbeef as *mut u8) = 42;
+                // };
                 let heap_value = Box::new('c');
-                serial_println!("heap_value at {:p}", heap_value);
-                let nigger_value = Box::new(444);
-                serial_println!("heap_value at {:p}", nigger_value);
+                println!("heap_value location: {:p}", heap_value);
+                println!("heap_value: {}", *heap_value);
 
                 let mut executor = Executor::new();
                 executor.spawn(Task::new(example_task()));
@@ -131,6 +116,8 @@ unsafe extern "C" fn kmain() -> ! {
             
         }
     }
+
+
 
 
 
@@ -150,7 +137,7 @@ unsafe extern "C" fn kmain() -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    serial_println!("panic here: {}", info);
+    println!("panic here: {}", info);
     carrot_os::hlt_loop();
 }
 
@@ -160,5 +147,5 @@ async fn async_number() -> u32 {
 
 async fn example_task() {
     let number = async_number().await;
-    serial_println!("async number :3 {}", number);
+    println!("async number :3 {}", number);
 }

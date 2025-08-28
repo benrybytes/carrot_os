@@ -12,7 +12,8 @@ use core::panic::PanicInfo;
 pub mod gdt;
 pub mod interrupts;
 pub mod serial;
-pub mod vga_text;
+// pub mod vga_text;
+pub mod text;
 pub mod memory;
 pub mod allocator;
 pub mod task;
@@ -69,7 +70,11 @@ pub fn init() {
     interrupts::init_idt();
 
     // allow CPU to detect interrupts in sti instruction
-    unsafe { interrupts::PICS.lock().initialize() };
+    unsafe { 
+        interrupts::PICS.lock().initialize();
+        // interrupts::PICS.lock().write_masks(0b11111101, 0b11111111);
+        interrupts::PICS.lock().write_masks(0b11111101, 0xff); // mask all IRQs
+    }
     x86_64::instructions::interrupts::enable();
 }
 
