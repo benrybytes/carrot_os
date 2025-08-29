@@ -1,22 +1,23 @@
 #![no_std]
 #![no_main]
 
-extern crate alloc; // import again to not 
+extern crate alloc; // import again to not
 use alloc::boxed::Box;
 
-use limine::BaseRevision;
 use limine::framebuffer::Framebuffer;
-use limine::request::{RequestsEndMarker, RequestsStartMarker, MemoryMapRequest, ExecutableAddressRequest, HhdmRequest};
+use limine::request::{
+    ExecutableAddressRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+};
+use limine::BaseRevision;
 
-use carrot_os::{println, print};
+use carrot_os::task::{executor::Executor, keyboard, Task};
+use carrot_os::{print, println};
 use core::panic::PanicInfo;
-use carrot_os::task::{Task, executor::Executor, keyboard};
 
 #[used]
 // The .requests section allows limine to find the requests faster and more safely.
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
-
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -31,7 +32,6 @@ static EXECUTABLE_ADDRESS_REQUEST: ExecutableAddressRequest = ExecutableAddressR
 // Request the higher-half direct mapping
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 
-
 // Define the stand and end markers for Limine requests.
 #[used]
 #[unsafe(link_section = ".requests_start_marker")]
@@ -44,13 +44,14 @@ extern "C" {
     static _binary_Cyr_a8x16_psf_start: u8;
     static _binary_Cyr_a8x16_psf_end: u8;
     static _binary_Cyr_a8x16_psf_size: u8;
+    static _kernel_end: u8;
+    static _kernel_start: u8;
 }
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn kmain() -> ! {
-
-    use carrot_os::{memory, allocator, text};
+    use carrot_os::{allocator, memory, text};
     use x86_64::VirtAddr;
     // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
@@ -82,57 +83,31 @@ unsafe extern "C" fn kmain() -> ! {
     // ).unwrap();
     // assert_eq!(&buf, b"black smoke");
 
-
     if let Some(executable_address_response) = EXECUTABLE_ADDRESS_REQUEST.get_response() {
         let virtual_base = executable_address_response.virtual_base();
         let physical_base = executable_address_response.physical_base();
+        let kernel_end = unsafe { &_kernel_end as *const u8 as u64 };
 
-        println!{"physical start 0x{:x}", physical_base};
-        println!{"virtual start 0x{:x}", virtual_base};
         // starting point / Cr3 pointer to our memory address
         if let Some(memory_map_response) = MEMORY_MAP_REQUEST.get_response() {
             if let Some(hddm_response) = HHDM_REQUEST.get_response() {
                 let offset = hddm_response.offset();
-                let mut mapper = unsafe { memory::init(VirtAddr::new(offset))};
-                let mut frame_allocator = unsafe {
-                    memory::BootInfoFrameAllocator::init(memory_map_response.entries())
-                };
+                let mut mapper = unsafe { memory::init(VirtAddr::new(offset)) };
+                let mut frame_allocator =
+                    unsafe { memory::BootInfoFrameAllocator::init(memory_map_response.entries()) };
 
                 let _ = allocator::init_heap(&mut mapper, &mut frame_allocator).unwrap();
 
-                // unsafe {
-                //     *(0xdeadbeef as *mut u8) = 42;
-                // };
                 let heap_value = Box::new('c');
-                println!("heap_value location: {:p}", heap_value);
-                println!("heap_value: {}", *heap_value);
 
                 let mut executor = Executor::new();
                 executor.spawn(Task::new(example_task()));
                 executor.spawn(Task::new(keyboard::print_keypresses()));
                 executor.run();
-
             }
-            
         }
     }
-
-
-
-
-
-    // serial_print!("stack_overflow::stack_overflow...\t");
-
-    // println!("hello world");
-
-
-    // stack_overflow();
-
-    // #[cfg(test)]
-    // test_main();
-
-
-    loop {}
+    carrot_os::hlt_loop();
 }
 #[cfg(not(test))]
 #[panic_handler]
@@ -147,5 +122,4 @@ async fn async_number() -> u32 {
 
 async fn example_task() {
     let number = async_number().await;
-    println!("async number :3 {}", number);
 }

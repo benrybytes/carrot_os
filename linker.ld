@@ -66,6 +66,7 @@ SECTIONS {
     }
 	PROVIDE(_heap_end = .);
 
+
     /DISCARD/ : {
         *(.eh_frame*) /* this section does not work on all hosts */
         *(.note .note.*)

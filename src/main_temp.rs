@@ -5,13 +5,13 @@
 #![reexport_test_harness_main = "test_main"]
 use core::arch::asm;
 
+use bootloader::BootInfo;
+use carrot_os::task::{executor::Executor, keyboard, Task};
 use carrot_os::{println, serial_print};
 use core::panic::PanicInfo;
-use bootloader::BootInfo;
-use carrot_os::task::{Task, executor::Executor, keyboard};
 
-use limine::BaseRevision;
 use limine::request::{FramebufferRequest, RequestsEndMarker, RequestsStartMarker};
+use limine::BaseRevision;
 
 // all limine requests are marked with #[used], otherwise they may be removed by the compiler.
 #[used]
@@ -32,8 +32,7 @@ static _START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
-
-extern crate alloc; // import again to not 
+extern crate alloc; // import again to not
 use alloc::boxed::Box;
 
 // called on panic / makes our program abort
@@ -78,10 +77,11 @@ unsafe extern "C" fn kmain() -> ! {
         }
     }
     let ptr = 0xb8000 as *mut u8;
-    unsafe { *ptr = b'X'; } // write to VGA if paging not enabled
+    unsafe {
+        *ptr = b'X';
+    } // write to VGA if paging not enabled
     hcf();
     loop {}
-
 }
 
 #[panic_handler]
@@ -103,7 +103,6 @@ fn hcf() -> ! {
 }
 #[unsafe(no_mangle)]
 unsafe extern "C" fn _start() -> ! {
-
     // make sure limine is supported
     assert!(BASE_REVISION.is_supported());
 
@@ -180,7 +179,6 @@ async fn async_number() -> u32 {
 
 async fn example_task() {
     let number = async_number().await;
-    println!("async number :3 {}", number);
 }
 
 #[allow(unconditional_recursion)]

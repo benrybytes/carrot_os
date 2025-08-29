@@ -1,12 +1,14 @@
-
-use futures_util::stream::StreamExt;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use crate::{print, println, serial_print, serial_println};
 use conquer_once::spin::OnceCell;
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 use crossbeam_queue::ArrayQueue;
-use crate::{println, print, serial_println, serial_print};
-use core::{pin::Pin, task::{Poll, Context}};
-use futures_util::{task::AtomicWaker, stream::Stream};
+use futures_util::stream::StreamExt;
+use futures_util::{stream::Stream, task::AtomicWaker};
 use pc_keyboard::ScancodeSet2;
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 
 // make sure initialization occurs outside of interrupt handler
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
@@ -32,7 +34,8 @@ pub struct ScancodeStream {
 
 impl ScancodeStream {
     pub fn new() -> Self {
-        SCANCODE_QUEUE.try_init_once(|| ArrayQueue::new(100))
+        SCANCODE_QUEUE
+            .try_init_once(|| ArrayQueue::new(100))
             .expect("initialized more than once");
         ScancodeStream { _private: () }
     }
@@ -54,7 +57,6 @@ impl Stream for ScancodeStream {
         match queue.pop() {
             Some(queue_scancode) => {
                 WAKER.take();
-                println!{"running add scancode to the queue and running from waking"};
                 Poll::Ready(Some(queue_scancode))
             }
             None => Poll::Pending,
@@ -62,26 +64,22 @@ impl Stream for ScancodeStream {
     }
 }
 
-
 pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
-    let mut keyboard = Keyboard::new(ScancodeSet2::new(),
-        layouts::Us104Key, HandleControl::Ignore);
+    let mut keyboard = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
 
-    println!("get scancodes");
     while let Some(scancode) = scancodes.next().await {
-        println!("scancode {}", scancode);
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-            println!("key event {:?}", key_event);
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
                     DecodedKey::Unicode(character) => print!("{}", character),
                     DecodedKey::RawKey(key) => print!("{:?}", key),
                 }
             }
-        } else {
-            println!("Error adding byte for scancode: {:?}", scancode);
         }
     }
-    println!("couldn't get scancodes");
 }

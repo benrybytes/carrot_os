@@ -13,10 +13,10 @@ pub mod gdt;
 pub mod interrupts;
 pub mod serial;
 // pub mod vga_text;
-pub mod text;
-pub mod memory;
 pub mod allocator;
+pub mod memory;
 pub mod task;
+pub mod text;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -66,15 +66,16 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 }
 
 pub fn init() {
-    gdt::init();
+    // gdt::init();
     interrupts::init_idt();
 
     // allow CPU to detect interrupts in sti instruction
-    unsafe { 
+    unsafe {
         interrupts::PICS.lock().initialize();
         // interrupts::PICS.lock().write_masks(0b11111101, 0b11111111);
-        interrupts::PICS.lock().write_masks(0b11111101, 0xff); // mask all IRQs
+        interrupts::PICS.lock().write_masks(0x0, 0x0); // mask all IRQs
     }
+
     x86_64::instructions::interrupts::enable();
 }
 

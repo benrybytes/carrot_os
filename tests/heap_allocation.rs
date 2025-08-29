@@ -1,4 +1,3 @@
-
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
@@ -7,9 +6,9 @@
 
 extern crate alloc;
 
-use core::panic::PanicInfo;
+use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use carrot_os::allocator::_heap_size;
-use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
+use core::panic::PanicInfo;
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
@@ -21,11 +20,8 @@ unsafe extern "C" fn kmain() -> ! {
     carrot_os::init();
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe {
-        BootInfoFrameAllocator::init(&boot_info.memory_map)
-    };
-    allocator::init_heap(&mut mapper, &mut frame_allocator)
-        .expect("could not initialize heap");
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("could not initialize heap");
 
     test_main();
     loop {}
@@ -49,7 +45,7 @@ fn vector_checker() {
     for i in 0..n {
         vector_test.push(i);
     }
-    assert_eq!(vector_test.iter().sum::<u64>(), (n-1) * n / 2);
+    assert_eq!(vector_test.iter().sum::<u64>(), (n - 1) * n / 2);
 }
 
 #[test_case]

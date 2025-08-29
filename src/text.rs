@@ -1,11 +1,10 @@
-use limine::request::FramebufferRequest;
-use limine::response::FramebufferResponse;
 use core::fmt::Write;
 use lazy_static::lazy_static;
+use limine::framebuffer::Framebuffer;
+use limine::request::FramebufferRequest;
+use limine::response::FramebufferResponse;
 use spin::Mutex; // who controls what piece of data, continuous sleeping
 use volatile::Volatile; // no compiler optimizations lol
-use limine::framebuffer::Framebuffer;
-
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -71,16 +70,8 @@ impl Write for Writer<'_> {
     }
 }
 
-
-                // for y in 0..height {
-                //     if y % 16 == 0 {
-                //         for x in 0..width {
-                //             if x % 8 == 0 {
-                //                 self.draw_char(0x20);
-                //             }
-                //         }
-                //     }
-                // }
+const HEIGHT_OFFSET: u64 = 16;
+const WIDTH_OFFSET: u64 = 8;
 
 impl Writer<'_> {
     fn load(foreground: Color, background: Color) -> Self {
@@ -108,42 +99,49 @@ impl Writer<'_> {
                     foreground: foreground as u32,
                     background: background as u32,
                     framebuffer,
-                    font
+                    font,
                 }
             }
-            None => panic!{"could not"}
+
+            None => panic! {"could not initialize writer"},
         }
     }
     pub fn new_line(&mut self) {
         // start from zero as a new line was made
         self.x = 0;
-        self.y += 1;
-        if self.y >= self.height {
-            
-        }
+        self.y += HEIGHT_OFFSET;
     }
 
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
+            0x8 => {
+                if self.x < 0 {
+                    self.y -= HEIGHT_OFFSET;
+                    self.x = self.width;
+                } else {
+                    self.x -= WIDTH_OFFSET;
+                }
+                self.draw_char(0x8);
+            }
             byte => {
                 if self.x >= self.width {
                     self.new_line();
                 }
                 self.draw_char(byte);
-                self.x +=1;
+                self.x += WIDTH_OFFSET;
             }
         }
     }
     pub fn write_string(&mut self, s: &str) {
-
         // iterate to the string and convert to readable bytes
         for byte in s.bytes() {
+            crate::serial_println! {"{}", byte};
             match byte {
-                0x20..0x7e | b'\n' => self.write_byte(byte),
+                0x8..0x7f | b'\n' => self.write_byte(byte),
 
                 // non ASCII characters
-                _ => self.write_byte(0xfe)
+                _ => self.write_byte(0xfe),
             }
         }
     }
@@ -152,11 +150,16 @@ impl Writer<'_> {
 
         for (row, byte) in glyph.iter().enumerate() {
             for bit in 0..8 {
-                let pixel = if byte & (0x80 >> bit) != 0 { self.foreground } else { self.background };
+                let pixel = if byte & (0x80 >> bit) != 0 && c != 0x8 {
+                    self.foreground
+                } else {
+                    self.background
+                };
                 // Calculate the pixel offset using the framebuffer information we obtained above.
                 // We skip `i` scanlines (pitch is provided in bytes) and add `i * 4` to skip `i` pixels forward.
 
-                let pixel_offset = (self.y * 16 + row as u64) * self.framebuffer.pitch() + (self.x * 8 + bit) * 4;
+                let pixel_offset =
+                    (self.y + row as u64) * self.framebuffer.pitch() + (self.x + bit) * 4;
                 unsafe {
                     self.framebuffer
                         .addr()
@@ -164,7 +167,6 @@ impl Writer<'_> {
                         .cast::<u32>()
                         .write(pixel)
                 };
-
             }
         }
     }
@@ -175,27 +177,24 @@ impl Writer<'_> {
 #[repr(u32)]
 enum Color {
     White = 0xc9ccca,
-    Black = 0x222623
+    Black = 0x000000,
 }
 
 // allow access of static globally when accessed the first time to not make compiler complain
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer<'static>> = Mutex::new(Writer::load(
-        Color::White, 
-        Color::Black
-    ));
+    pub static ref WRITER: Mutex<Writer<'static>> =
+        Mutex::new(Writer::load(Color::White, Color::Black));
 }
 
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
     use core::fmt::Write;
-    use x86_64::instructions::interrupts;   // new
+    use x86_64::instructions::interrupts;
 
-    interrupts::without_interrupts(|| {     // new
+    interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
     });
 }
-
 
 #[macro_export]
 macro_rules! print {
@@ -210,4 +209,3 @@ macro_rules! println {
     // format the arguments for the current print implementation
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
-

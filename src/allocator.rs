@@ -1,7 +1,6 @@
-
 use x86_64::{
     structures::paging::{
-        mapper::MapToError, FrameAllocator, PageTableFlags, Mapper, Page, Size4KiB
+        mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
     },
     VirtAddr,
 };
@@ -12,16 +11,16 @@ pub mod fixed_size_block;
 use fixed_size_block::FixedSizeBlockAllocator;
 
 pub struct Locked<A> {
-    inner: spin::Mutex<A>
+    inner: spin::Mutex<A>,
 }
 
 impl<A> Locked<A> {
     pub const fn new(inner: A) -> Self {
         Locked {
-            inner: spin::Mutex::new(inner)
+            inner: spin::Mutex::new(inner),
         }
     }
-    
+
     pub fn lock(&self) -> spin::MutexGuard<'_, A> {
         self.inner.lock()
     }
@@ -47,7 +46,9 @@ pub fn init_heap(
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
     for page in page_range {
-        let frame = frame_allocator.allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
+        let frame = frame_allocator
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
 
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
@@ -56,15 +57,17 @@ pub fn init_heap(
             Ok(mapper) => {
                 // Flush the TLB if mapping is successful
                 mapper.flush();
-            },
+            }
             Err(_) => {
                 continue;
             }
         }
-    };
+    }
 
     unsafe {
-        ALLOCATOR.lock().init(heap_start as usize, heap_size as usize);
+        ALLOCATOR
+            .lock()
+            .init(heap_start as usize, heap_size as usize);
     }
 
     Ok(())

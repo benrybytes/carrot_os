@@ -5,11 +5,11 @@
 #![test_runner(carrot_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use carrot_os::{exit_qemu, serial_println, QemuExitCode};
+use carrot_os::{gdt, serial_print, test_panic_handler};
 use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-use carrot_os::{gdt, serial_print, test_panic_handler};
-use carrot_os::{exit_qemu, QemuExitCode, serial_println};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
@@ -29,7 +29,6 @@ fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
 }
 
-
 lazy_static! {
     static ref TEST_IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
@@ -47,7 +46,6 @@ pub fn init_test_idt() {
     TEST_IDT.load();
 }
 
-
 extern "x86-interrupt" fn test_double_fault_handler(
     _stack_frame: InterruptStackFrame,
     _error_code: u64,
@@ -63,4 +61,3 @@ fn stack_overflow() {
     stack_overflow(); // for each recursion, the return address is pushed
     volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
 }
-

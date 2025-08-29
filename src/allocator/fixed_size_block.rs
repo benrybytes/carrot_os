@@ -1,11 +1,10 @@
-
+use super::Locked;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 use core::{mem, ptr::NonNull};
-use super::Locked;
 
 struct ListNode {
-    next: Option<&'static mut ListNode>
+    next: Option<&'static mut ListNode>,
 }
 
 // block size doubles if needed for worse case scenario allocation, 16 bytes for a 12 is a best
@@ -16,7 +15,7 @@ pub struct FixedSizeBlockAllocator {
     // each head is for each block to be tracked
     list_heads: [Option<&'static mut ListNode>; BLOCK_SIZES.len()],
     // using linked list allocator, as it can merge blocks when deallocated
-    fallback_allocator: linked_list_allocator::Heap
+    fallback_allocator: linked_list_allocator::Heap,
 }
 
 impl FixedSizeBlockAllocator {
@@ -25,18 +24,20 @@ impl FixedSizeBlockAllocator {
         const EMPTY: Option<&'static mut ListNode> = None;
         FixedSizeBlockAllocator {
             list_heads: [EMPTY; BLOCK_SIZES.len()],
-            fallback_allocator: linked_list_allocator::Heap::empty()
+            fallback_allocator: linked_list_allocator::Heap::empty(),
         }
     }
 
     pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
-        unsafe { self.fallback_allocator.init(heap_start, heap_size); }
+        unsafe {
+            self.fallback_allocator.init(heap_start, heap_size);
+        }
     }
 
     fn fallback_alloc(&mut self, layout: Layout) -> *mut u8 {
         match self.fallback_allocator.allocate_first_fit(layout) {
             Ok(ptr) => ptr.as_ptr(),
-            Err(_) => null_mut()
+            Err(_) => null_mut(),
         }
     }
 }
@@ -67,7 +68,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
                     }
                 }
             }
-            None => allocator.fallback_alloc(layout)
+            None => allocator.fallback_alloc(layout),
         }
     }
 
@@ -76,7 +77,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
         match list_index(&layout) {
             Some(index) => {
                 let new_node = ListNode {
-                    next: allocator.list_heads[index].take()
+                    next: allocator.list_heads[index].take(),
                 };
                 // verify that block has size and alignment required for storing node
                 // make sure we do not align more than block size
