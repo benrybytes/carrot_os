@@ -5,13 +5,15 @@ extern crate alloc; // import again to not
 use alloc::boxed::Box;
 
 use limine::framebuffer::Framebuffer;
+use limine::modules::InternalModule;
 use limine::request::{
-    ExecutableAddressRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+    ExecutableAddressRequest, HhdmRequest, MemoryMapRequest, ModuleRequest, RequestsEndMarker,
+    RequestsStartMarker,
 };
 use limine::BaseRevision;
 
 use carrot_os::task::{executor::Executor, keyboard, Task};
-use carrot_os::{print, println};
+use carrot_os::{print, println, serial_println};
 use core::panic::PanicInfo;
 
 #[used]
@@ -26,6 +28,11 @@ static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 #[used]
 #[unsafe(link_section = ".requests")]
 static EXECUTABLE_ADDRESS_REQUEST: ExecutableAddressRequest = ExecutableAddressRequest::new();
+
+#[used]
+#[unsafe(link_section = ".requests")]
+static MODULE_REQUEST: ModuleRequest = ModuleRequest::new()
+    .with_internal_modules(&[&InternalModule::new().with_path(limine::cstr!("/dev/disk0s3"))]);
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -51,22 +58,28 @@ extern "C" {
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn kmain() -> ! {
-    use carrot_os::{allocator, memory, text};
+    use carrot_os::{allocator, filesystem::block_types::SuperblockStorage, memory, text};
     use x86_64::VirtAddr;
     // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
     carrot_os::init();
 
+    x86_64::instructions::interrupts::enable();
     // ram_storage!(tiny);
     // let mut ram = Ram::default();
     // let mut storage = RamStorage::new(&mut ram);
-    //
-    // // must format before first mount
+
+    // must format before first mount
     // Filesystem::format(&mut storage).unwrap();
     // // must allocate state statically before use
     // let mut allocated_filesystem = Filesystem::allocate();
     // let mut fs = Filesystem::mount(&mut allocated_filesystem, &mut storage).unwrap();
+    let mut sb = SuperblockStorage::new();
+    sb.initialize();
+
+    let superblock = sb.get_superblock();
+    println! {"superblock: {:p}", superblock};
     //
     // // may use common `OpenOptions`
     // let mut buf = [0u8; 11];
@@ -74,14 +87,18 @@ unsafe extern "C" fn kmain() -> ! {
     //     |options| options.read(true).write(true).create(true),
     //     path!("example.txt"),
     //     |file| {
-    //         // file.write(b"Why is black smoke coming out?!")?;
-    //         // file.seek(SeekFrom::End(-24)).unwrap();
+    //         file.write(b"Why is black smoke coming out?!")?;
+    //         file.seek(SeekFrom::End(-24)).unwrap();
     //         file.read(&mut buf)
-    //         // assert_eq!(file.read(&mut buf)?, 11);
+    //         assert_eq!(file.read(&mut buf)?, 11);
     //         Ok(())
     //     }
-    // ).unwrap();
-    // assert_eq!(&buf, b"black smoke");
+
+    // if let Some(module_response) = MODULE_REQUEST.get_response() {
+    //     for module in module_response.modules().iter() {
+    //         println! {"module: {}", module.size()};
+    //     }
+    // }
 
     if let Some(executable_address_response) = EXECUTABLE_ADDRESS_REQUEST.get_response() {
         let virtual_base = executable_address_response.virtual_base();
@@ -103,6 +120,10 @@ unsafe extern "C" fn kmain() -> ! {
                 let mut executor = Executor::new();
                 executor.spawn(Task::new(example_task()));
                 executor.spawn(Task::new(keyboard::print_keypresses()));
+
+                println! {"value: {}", heap_value};
+
+                // stack_overflow();
                 executor.run();
             }
         }
@@ -114,6 +135,11 @@ unsafe extern "C" fn kmain() -> ! {
 fn panic(info: &PanicInfo) -> ! {
     println!("panic here: {}", info);
     carrot_os::hlt_loop();
+}
+
+// #[stack_overflow]
+fn stack_overflow() -> ! {
+    stack_overflow();
 }
 
 async fn async_number() -> u32 {

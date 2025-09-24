@@ -9,4 +9,5 @@
 # qemu-system-x86_64 -drive format=raw,file=target/x86_64_carrot_os/debug/bootimage-carrot_os.bin
 
 # using limine
+cargo clean
 make clean && make run

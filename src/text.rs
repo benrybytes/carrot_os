@@ -136,7 +136,6 @@ impl Writer<'_> {
     pub fn write_string(&mut self, s: &str) {
         // iterate to the string and convert to readable bytes
         for byte in s.bytes() {
-            crate::serial_println! {"{}", byte};
             match byte {
                 0x8..0x7f | b'\n' => self.write_byte(byte),
 

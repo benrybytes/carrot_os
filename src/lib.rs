@@ -9,12 +9,12 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
+pub mod allocator;
+pub mod filesystem;
 pub mod gdt;
 pub mod interrupts;
-pub mod serial;
-// pub mod vga_text;
-pub mod allocator;
 pub mod memory;
+pub mod serial;
 pub mod task;
 pub mod text;
 
@@ -25,12 +25,22 @@ pub enum QemuExitCode {
     Failed = 0x11,
 }
 
+// writing to ports
 pub fn exit_qemu(exit_code: QemuExitCode) {
     use x86_64::instructions::port::Port;
 
     unsafe {
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
+    }
+}
+
+pub fn outb(port: u16, value: u8) {
+    use x86_64::instructions::port::Port;
+
+    unsafe {
+        let mut port = Port::new(port);
+        port.write(value as u32);
     }
 }
 
@@ -65,18 +75,21 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     hlt_loop();
 }
 
-pub fn init() {
-    // gdt::init();
-    interrupts::init_idt();
+#[inline(always)]
+pub unsafe fn enable_a20() {
+    unsafe {
+        outb(0x60, 0xD1); // Command to enable A20
+        outb(0x60, 0xDF); // Enable A20 line
+    }
+}
 
-    // allow CPU to detect interrupts in sti instruction
+pub fn init() {
+    gdt::init();
+    interrupts::init_idt();
     unsafe {
         interrupts::PICS.lock().initialize();
-        // interrupts::PICS.lock().write_masks(0b11111101, 0b11111111);
-        interrupts::PICS.lock().write_masks(0x0, 0x0); // mask all IRQs
+        interrupts::PICS.lock().write_masks(0, 0);
     }
-
-    x86_64::instructions::interrupts::enable();
 }
 
 // halt cpu until next interrupt arrives

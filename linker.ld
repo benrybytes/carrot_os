@@ -1,30 +1,32 @@
 OUTPUT_FORMAT(elf64-x86-64)
-
 ENTRY(kmain)
 
-/* MEMORY */
-/* { */
-/*     RAM : ORIGIN = 0x00000000, LENGTH = 512M */
-/* } */
+MEMORY
+{
+  rom (rx)  : ORIGIN = 0xffffffff80000000, LENGTH = 5M
+  ram (rwx) : ORIGIN = 0xffffffff80500000, LENGTH = 3M
+}
 
-/* mmu permissions for limine */
 PHDRS {
     text PT_LOAD;
     rodata PT_LOAD;
     data PT_LOAD;
 }
 
-SECTIONS {
-    . = 0xffffffff80000000;
-    PROVIDE(_kernel_start = .);
+STACK_SIZE = 0x2000;
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+SECTIONS
+{
+    . = ORIGIN(rom);
+    _kernel_start = .;
 
-    .text : {
+    .text : AT(ADDR(.text)) {
         *(.text .text.*)
-    } :text
+        *(.rodata*)
+        *(.rodata.*)
+    } > rom :text
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .rodata : {
         *(.rodata .rodata.*)
@@ -32,44 +34,63 @@ SECTIONS {
 
     .psf_font : {
         KEEP(*(.psf_font))
-    } :rodata
+    } > rom :rodata
 
     .note.gnu.build-id : {
         *(.note.gnu.build-id)
-    } :rodata
+    } > rom :rodata
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
+    /* Place .data/.bss/stack/heap in RAM (high-half) */
+    . = ORIGIN(ram);
     .data : {
-        *(.data .data.*)
+		*(.data .data.*)
 
         /* place limine requests at data as we are going to initialize location inside main.rs */
         KEEP(*(.requests_start_marker))
         KEEP(*(.requests))
         KEEP(*(.requests_end_marker))
-    } :data
+    } > ram AT > rom :data    /* AT > rom allowed because LMAs will be placed after ROM data in file */
 
-    /* Stack should be last because we do not want unnecessary 0's */
-    .bss : {
+    .bss (NOLOAD) : {
         *(.bss*)
         *(COMMON)
-    } :data
+    } > ram :data
 
-    /* Align kernel end to page boundary and export it */
-    PROVIDE(_kernel_end = .);
-    . = ALIGN(4096);
+	.stack (NOLOAD) : {
+		. = ALIGN(8);
+		_stack_start = .;
+		. = . + STACK_SIZE;
+		_stack_end = .;
+		. = ALIGN(8);
+	} > ram
 
-	PROVIDE(_heap_start = .);
-	PROVIDE(_heap_size = 1M);
+	.stack_low : {
+		. = ALIGN(16);
+		_stack_low_start = .;       /* bottom of the stack */
+		. = . + 0x4000;            /* 16 KiB stack */
+		_stack_end_low = .;         /* top of the stack */
+	} > ram
+
+	_kernel_end = .;
+	. = ALIGN(4096);
+
+    /* heap */
+    _heap_start = .;
     .heap (NOLOAD) : {
-        . = . + _heap_size;  /* 16 MiB heap */
-    }
-	PROVIDE(_heap_end = .);
+        . = . + 1M;
+    } > ram :data
+	_heap_end = .;
 
-
-    /DISCARD/ : {
-        *(.eh_frame*) /* this section does not work on all hosts */
-        *(.note .note.*)
-    }
+	/* If we're on a newer compiler */
+	/DISCARD/ : {
+	  *(.interp)
+	  *(.dynsym)
+	  *(.dynstr)
+	  *(.hash)
+	  *(.gnu.hash)
+	  *(.header)
+	} : phdr
 }
 

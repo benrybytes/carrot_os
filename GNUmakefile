@@ -216,9 +216,9 @@ ifeq ($(KARCH),loongarch64)
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
 		iso_root -o $(IMAGE_NAME).iso
 endif
-	rm -rf iso_root
+	# rm -rf iso_root
 
-$(IMAGE_NAME).hdd: limine/limine kernel
+$(IMAGE_NAME).hdd: limine/limine carrot_os
 	rm -f $(IMAGE_NAME).hdd
 	dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE_NAME).hdd
 	sgdisk $(IMAGE_NAME).hdd -n 1:2048 -t 1:ef00
@@ -247,7 +247,7 @@ endif
 .PHONY: clean
 clean:
 	# $(MAKE) -C carrot_os clean
-	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd carrot_os
+	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd carrot_os limine ovmf
 
 .PHONY: distclean
 distclean: clean

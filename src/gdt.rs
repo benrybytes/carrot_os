@@ -11,18 +11,17 @@ struct Selectors {
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
+extern "C" {
+    static _stack_end: u8;
+    static _stack_end_low: u8;
+}
+
 lazy_static! {
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
-        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-            const STACK_SIZE: usize = 4096 * 15;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+        let stack_top = unsafe { &_stack_end_low as *const u8 as u64 };
+        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = VirtAddr::new(stack_top);
 
-            let stack_start = VirtAddr::from_ptr(unsafe { &STACK as *const _ as *const u8 });
-            #[warn(clippy::let_and_return)]
-            let stack_end = stack_start + STACK_SIZE;
-            stack_end
-        };
         tss
     };
 }
@@ -31,17 +30,21 @@ lazy_static! {
 lazy_static! {
     static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
-
         let code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
-        let data_selector = gdt.add_entry(Descriptor::kernel_data_segment()); // NEW
         let tss_selector = gdt.add_entry(Descriptor::tss_segment(&TSS));
 
-        (gdt, Selectors { code_selector, tss_selector })
+        (
+            gdt,
+            Selectors {
+                code_selector,
+                tss_selector,
+            },
+        )
     };
 }
 
 pub fn init() {
-    use x86_64::instructions::segmentation::{Segment, CS};
+    use x86_64::instructions::segmentation::{Segment, CS, DS, ES, SS};
     use x86_64::instructions::tables::load_tss;
 
     // reset cs to point to tss segment

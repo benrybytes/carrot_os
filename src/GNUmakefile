@@ -33,7 +33,7 @@ endif
 # Default target.
 .PHONY: all
 all:
-	cargo build --target $(RUST_TARGET).json --profile $(RUST_PROFILE)
+	cargo build --verbose --target $(RUST_TARGET).json --profile $(RUST_PROFILE)
 	cp ../target/$(RUST_TARGET)/debug/carrot_os ../carrot_os
 
 # Remove object files and the final executable.

@@ -8,6 +8,7 @@ iretq is the instruction used for interrupts on the stack
 
 # interrupt stack frame
 
+holds our current interrupt handlers
 
 ## stack overflow
 
