@@ -3,8 +3,8 @@ ENTRY(kmain)
 
 MEMORY
 {
-  rom (rx)  : ORIGIN = 0xffffffff80000000, LENGTH = 5M
-  ram (rwx) : ORIGIN = 0xffffffff80500000, LENGTH = 3M
+  rom (rx)  : ORIGIN = 0xffffffff80000000, LENGTH = 10M
+  ram (rwx) : ORIGIN = 0xffffffff80500000, LENGTH = 5M
 }
 
 PHDRS {

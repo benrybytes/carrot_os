@@ -24,7 +24,7 @@ features = ["alloc"]
 
 # used for initializing static once
 [dependencies.conquer-once]
-version = "0.2.0"
+version = "^0.2.0"
 default-features = false
 
 # types for polling streams

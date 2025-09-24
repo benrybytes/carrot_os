@@ -65,7 +65,6 @@ unsafe extern "C" fn kmain() -> ! {
     assert!(BASE_REVISION.is_supported());
     carrot_os::init();
 
-    x86_64::instructions::interrupts::enable();
     // ram_storage!(tiny);
     // let mut ram = Ram::default();
     // let mut storage = RamStorage::new(&mut ram);

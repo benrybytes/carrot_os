@@ -6,9 +6,12 @@
 #![feature(abi_x86_interrupt)]
 #![feature(never_type)]
 
+use conquer_once::spin::OnceCell;
+use core::panic::PanicInfo;
+use lazy_static::lazy_static;
+
 extern crate alloc;
 
-use core::panic::PanicInfo;
 pub mod allocator;
 pub mod filesystem;
 pub mod gdt;
@@ -32,15 +35,6 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
     unsafe {
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
-    }
-}
-
-pub fn outb(port: u16, value: u8) {
-    use x86_64::instructions::port::Port;
-
-    unsafe {
-        let mut port = Port::new(port);
-        port.write(value as u32);
     }
 }
 
@@ -75,21 +69,43 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     hlt_loop();
 }
 
-#[inline(always)]
-pub unsafe fn enable_a20() {
-    unsafe {
-        outb(0x60, 0xD1); // Command to enable A20
-        outb(0x60, 0xDF); // Enable A20 line
-    }
-}
-
 pub fn init() {
+    use interrupts::InterruptIndex;
+    use x86_64::instructions::segmentation::{Segment, CS};
+    use x86_64::instructions::tables::load_tss;
+    use x86_64::structures::idt::InterruptDescriptorTable; // runtime statics
     gdt::init();
-    interrupts::init_idt();
+
+    // allow time for GDT to be initialized with its segments, else general protection fault inside
+    // double fault occur
+    interrupts::IDT_CELL.get_or_init(|| {
+        let mut idt = InterruptDescriptorTable::new();
+
+        for i in 33..48 {
+            idt[i].set_handler_fn(interrupts::unexpected_irq_handler);
+        }
+        unsafe {
+            idt.double_fault
+                .set_handler_fn(interrupts::double_fault_handler)
+                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        }
+        idt.breakpoint
+            .set_handler_fn(interrupts::breakpoint_handler);
+        idt.page_fault
+            .set_handler_fn(interrupts::page_fault_handler);
+        idt[InterruptIndex::Keyboard.as_usize()]
+            .set_handler_fn(interrupts::keyboard_interrupt_handler);
+        idt[InterruptIndex::Timer.as_usize()].set_handler_fn(interrupts::timer_interrupt_handler);
+
+        idt
+    });
+
+    interrupts::IDT_CELL.get().unwrap().load();
     unsafe {
         interrupts::PICS.lock().initialize();
-        interrupts::PICS.lock().write_masks(0, 0);
+        interrupts::PICS.lock().write_masks(0b11111100, 0x0);
     }
+    x86_64::instructions::interrupts::enable();
 }
 
 // halt cpu until next interrupt arrives
