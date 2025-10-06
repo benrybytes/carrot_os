@@ -3,49 +3,10 @@
 
 extern crate alloc; // import again to not
 use alloc::boxed::Box;
-
-use limine::framebuffer::Framebuffer;
-use limine::modules::InternalModule;
-use limine::request::{
-    ExecutableAddressRequest, HhdmRequest, MemoryMapRequest, ModuleRequest, RequestsEndMarker,
-    RequestsStartMarker,
-};
-use limine::BaseRevision;
-
 use carrot_os::task::{executor::Executor, keyboard, Task};
+use carrot_os::x86_64_consts::HIGHER_HALF_START;
 use carrot_os::{print, println, serial_println};
 use core::panic::PanicInfo;
-
-#[used]
-// The .requests section allows limine to find the requests faster and more safely.
-#[unsafe(link_section = ".requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::new();
-
-#[used]
-#[unsafe(link_section = ".requests")]
-static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
-
-#[used]
-#[unsafe(link_section = ".requests")]
-static EXECUTABLE_ADDRESS_REQUEST: ExecutableAddressRequest = ExecutableAddressRequest::new();
-
-#[used]
-#[unsafe(link_section = ".requests")]
-static MODULE_REQUEST: ModuleRequest = ModuleRequest::new()
-    .with_internal_modules(&[&InternalModule::new().with_path(limine::cstr!("/dev/disk0s3"))]);
-
-#[used]
-#[unsafe(link_section = ".requests")]
-// Request the higher-half direct mapping
-static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
-
-// Define the stand and end markers for Limine requests.
-#[used]
-#[unsafe(link_section = ".requests_start_marker")]
-static _START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
-#[used]
-#[unsafe(link_section = ".requests_end_marker")]
-static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
 extern "C" {
     static _binary_Cyr_a8x16_psf_start: u8;
@@ -54,79 +15,28 @@ extern "C" {
     static _kernel_end: u8;
     static _kernel_start: u8;
 }
+use carrot_os::limine_requests::{BASE_REVISION, MEMORY_MAP_REQUEST};
 
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn kmain() -> ! {
-    use carrot_os::{allocator, filesystem::block_types::SuperblockStorage, memory, text};
-    use x86_64::VirtAddr;
-    // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
     carrot_os::init();
 
-    // ram_storage!(tiny);
-    // let mut ram = Ram::default();
-    // let mut storage = RamStorage::new(&mut ram);
+    // starting point / Cr3 pointer to our memory address
+    if let Some(memory_map_response) = MEMORY_MAP_REQUEST.get_response() {
+        carrot_os::memory::init_bsp(memory_map_response);
+        let heap_value = Box::new('c');
 
-    // must format before first mount
-    // Filesystem::format(&mut storage).unwrap();
-    // // must allocate state statically before use
-    // let mut allocated_filesystem = Filesystem::allocate();
-    // let mut fs = Filesystem::mount(&mut allocated_filesystem, &mut storage).unwrap();
-    let mut sb = SuperblockStorage::new();
-    sb.initialize();
+        let mut executor = Executor::new();
+        executor.spawn(Task::new(example_task()));
+        executor.spawn(Task::new(keyboard::print_keypresses()));
 
-    let superblock = sb.get_superblock();
-    println! {"superblock: {:p}", superblock};
-    //
-    // // may use common `OpenOptions`
-    // let mut buf = [0u8; 11];
-    // fs.open_file_with_options_and_then(
-    //     |options| options.read(true).write(true).create(true),
-    //     path!("example.txt"),
-    //     |file| {
-    //         file.write(b"Why is black smoke coming out?!")?;
-    //         file.seek(SeekFrom::End(-24)).unwrap();
-    //         file.read(&mut buf)
-    //         assert_eq!(file.read(&mut buf)?, 11);
-    //         Ok(())
-    //     }
-
-    // if let Some(module_response) = MODULE_REQUEST.get_response() {
-    //     for module in module_response.modules().iter() {
-    //         println! {"module: {}", module.size()};
-    //     }
-    // }
-
-    if let Some(executable_address_response) = EXECUTABLE_ADDRESS_REQUEST.get_response() {
-        let virtual_base = executable_address_response.virtual_base();
-        let physical_base = executable_address_response.physical_base();
-        let kernel_end = unsafe { &_kernel_end as *const u8 as u64 };
-
-        // starting point / Cr3 pointer to our memory address
-        if let Some(memory_map_response) = MEMORY_MAP_REQUEST.get_response() {
-            if let Some(hddm_response) = HHDM_REQUEST.get_response() {
-                let offset = hddm_response.offset();
-                let mut mapper = unsafe { memory::init(VirtAddr::new(offset)) };
-                let mut frame_allocator =
-                    unsafe { memory::BootInfoFrameAllocator::init(memory_map_response.entries()) };
-
-                let _ = allocator::init_heap(&mut mapper, &mut frame_allocator).unwrap();
-
-                let heap_value = Box::new('c');
-
-                let mut executor = Executor::new();
-                executor.spawn(Task::new(example_task()));
-                executor.spawn(Task::new(keyboard::print_keypresses()));
-
-                println! {"value: {}", heap_value};
-
-                // stack_overflow();
-                executor.run();
-            }
-        }
+        println! {"value: {}", heap_value};
+        executor.run();
     }
+
     carrot_os::hlt_loop();
 }
 #[cfg(not(test))]

@@ -37,12 +37,19 @@ pub extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) -> ! {
-    serial_println!(
+    panic!(
         "EXCEPTION: DOUBLE FAULT\n{:#?} | error code: {}",
-        stack_frame,
-        error_code
+        stack_frame, error_code
     );
-    loop {}
+}
+
+pub extern "x86-interrupt" fn general_protection_fault(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) {
+    serial_println! {"Stack Frame: {:#?}", stack_frame};
+    serial_println! {"Error code: {}", error_code};
+    panic! {"general protection fault"};
 }
 
 // handle page faults

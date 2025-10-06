@@ -12,14 +12,17 @@ use lazy_static::lazy_static;
 
 extern crate alloc;
 
-pub mod allocator;
 pub mod filesystem;
 pub mod gdt;
+pub mod hhdm_offset;
 pub mod interrupts;
+pub mod limine_requests;
 pub mod memory;
 pub mod serial;
 pub mod task;
 pub mod text;
+pub mod translate_addr;
+pub mod x86_64_consts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -71,14 +74,12 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 
 pub fn init() {
     use interrupts::InterruptIndex;
-    use x86_64::instructions::segmentation::{Segment, CS};
-    use x86_64::instructions::tables::load_tss;
     use x86_64::structures::idt::InterruptDescriptorTable; // runtime statics
     gdt::init();
 
     // allow time for GDT to be initialized with its segments, else general protection fault inside
     // double fault occur
-    interrupts::IDT_CELL.get_or_init(|| {
+    let IDT = interrupts::IDT_CELL.get_or_init(|| {
         let mut idt = InterruptDescriptorTable::new();
 
         for i in 33..48 {
@@ -93,14 +94,15 @@ pub fn init() {
             .set_handler_fn(interrupts::breakpoint_handler);
         idt.page_fault
             .set_handler_fn(interrupts::page_fault_handler);
-        idt[InterruptIndex::Keyboard.as_usize()]
-            .set_handler_fn(interrupts::keyboard_interrupt_handler);
-        idt[InterruptIndex::Timer.as_usize()].set_handler_fn(interrupts::timer_interrupt_handler);
+        idt.general_protection_fault
+            .set_handler_fn(interrupts::general_protection_fault);
+        idt[InterruptIndex::Keyboard as u8].set_handler_fn(interrupts::keyboard_interrupt_handler);
+        idt[InterruptIndex::Timer.as_u8()].set_handler_fn(interrupts::timer_interrupt_handler);
 
         idt
     });
 
-    interrupts::IDT_CELL.get().unwrap().load();
+    IDT.load();
     unsafe {
         interrupts::PICS.lock().initialize();
         interrupts::PICS.lock().write_masks(0b11111100, 0x0);

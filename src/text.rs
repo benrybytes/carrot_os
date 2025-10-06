@@ -1,14 +1,9 @@
+use crate::limine_requests::FRAME_BUFFER_REQUEST;
 use core::fmt::Write;
 use lazy_static::lazy_static;
 use limine::framebuffer::Framebuffer;
-use limine::request::FramebufferRequest;
-use limine::response::FramebufferResponse;
 use spin::Mutex; // who controls what piece of data, continuous sleeping
 use volatile::Volatile; // no compiler optimizations lol
-
-#[used]
-#[unsafe(link_section = ".requests")]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 #[repr(C)]
 struct Psf1Header {
@@ -76,7 +71,7 @@ const WIDTH_OFFSET: u64 = 8;
 impl Writer<'_> {
     fn load(foreground: Color, background: Color) -> Self {
         let framebuffer_value: Option<Framebuffer<'_>>;
-        if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response() {
+        if let Some(framebuffer_response) = FRAME_BUFFER_REQUEST.get_response() {
             if let Some(framebuffer) = framebuffer_response.framebuffers().next() {
                 framebuffer_value = Some(framebuffer);
             } else {

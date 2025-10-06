@@ -1,0 +1,3 @@
+
+[build-dependecies]
+user_mode_program_0 = { path = "../user_mode_program_0", artifact = "bin", target = "x86_64-unknown-none" }

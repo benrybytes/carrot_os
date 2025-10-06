@@ -10,3 +10,5 @@ cypr.o
 x86_64-carrot_os.iso
 
 *.iso
+
+/user_mode_program_0/

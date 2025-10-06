@@ -37,6 +37,7 @@ run-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).
 		-serial stdio \
 		-k en-us \
 		-d int \
+		-gdb tcp::1234
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-x86_64
@@ -248,9 +249,9 @@ endif
 .PHONY: clean
 clean:
 	# $(MAKE) -C carrot_os clean
-	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd carrot_os
+	rm -rf $(IMAGE_NAME).iso $(IMAGE_NAME).hdd carrot_os
 
 .PHONY: distclean
 distclean: clean
 	$(MAKE) -C carrot_os distclean
-	rm -rf limine ovmf
+	rm -rf limine ovmf iso_root

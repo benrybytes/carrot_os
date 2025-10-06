@@ -9,6 +9,8 @@ pub struct Selectors {
     pub code_selector: SegmentSelector, // operating in kernel
     pub data_selector: SegmentSelector, // access to stack, variables, etc in ring0
     pub tss_selector: SegmentSelector,  // ring0, ring2, ring3 context switching
+    pub user_code_selector: SegmentSelector,
+    pub user_data_selector: SegmentSelector,
 }
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
@@ -34,30 +36,63 @@ lazy_static! {
 
 // allowing switching of ring0 and ring3, while loading TSS
 pub fn init() {
-    use x86_64::instructions::segmentation::{Segment, CS, DS, ES, SS};
+    use x86_64::instructions::segmentation::{Segment, CS, SS};
     use x86_64::instructions::tables::load_tss;
-    GDT_CELL.get_or_init(|| {
+    let GDT = GDT_CELL.get_or_init(|| {
         let mut gdt = GlobalDescriptorTable::new();
-        let code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
-        let data_selector = gdt.add_entry(Descriptor::kernel_data_segment());
-        let tss_selector = gdt.add_entry(Descriptor::tss_segment(&TSS));
+        let code_selector = gdt.append(Descriptor::kernel_code_segment());
+        let data_selector = gdt.append(Descriptor::kernel_data_segment());
+        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
 
+        let user_code_selector = gdt.append(Descriptor::user_code_segment());
+        let user_data_selector = gdt.append(Descriptor::user_data_segment());
         (
             gdt,
             Selectors {
                 code_selector,
                 data_selector,
                 tss_selector,
+                user_code_selector,
+                user_data_selector,
             },
         )
     });
-    let GDT = GDT_CELL.get().unwrap();
-
-    // reset cs to point to tss segment
+    // switch to kernel mode
     GDT.0.load();
     unsafe {
         CS::set_reg(GDT.1.code_selector);
         SS::set_reg(GDT.1.data_selector);
         load_tss(GDT.1.tss_selector);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn jump_usermode() {
+    use core::arch::asm;
+    use x86_64::instructions::segmentation::SS;
+    use x86_64::registers::model_specific::{Efer, EferFlags};
+
+    let gdt = GDT_CELL.get().unwrap();
+    unsafe {
+        Efer::update(|flags| {
+            *flags = flags.union(EferFlags::SYSTEM_CALL_EXTENSIONS);
+        });
+        // Set the stack segment before executing IRET
+        SS::set_reg(gdt.1.tss_selector);
+
+        asm!(
+            "mov ds, {0:x}",  // Set DS to user data segment
+            "mov es, {0:x}",  // Set ES to user data segment
+            "mov fs, {0:x}",  // Set FS to user data segment
+            "mov gs, {0:x}",  // Set GS to user data segment
+            "mov rax, rsp",   // Load current stack pointer into RAX
+            "push {0:x}",     // Push data segment selector
+            "push rax",       // Push current stack pointer
+            "pushf",          // Push flags
+            "push {1:x}",     // Push code segment selector
+            "iret",           // Switch to user mode
+            in(reg) gdt.1.user_data_selector.0,
+            in(reg) gdt.1.user_code_selector.0,
+        );
     }
 }
