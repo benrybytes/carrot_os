@@ -1,0 +1,4 @@
+[workspace]
+resolver = "1"
+members = ["kernel", "user_mode_program_0"]
+# default-members = ["runner"]
