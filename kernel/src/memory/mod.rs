@@ -2,19 +2,19 @@
 
 use create_page_tables::*;
 use limine::response::MemoryMapResponse;
-use physical_memory::PhysicalMemory;
-pub use physical_memory::*;
 use spin::Once;
-use virtual_memory::VirtualMemory;
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{PhysFrame, Size4KiB},
 };
 
-mod create_page_tables;
-mod global_allocator;
-mod physical_memory;
-mod virtual_memory;
+pub mod create_page_tables;
+pub mod global_allocator;
+pub mod physical_memory;
+pub mod virtual_memory;
+
+pub use physical_memory::*;
+pub use virtual_memory::*;
 
 #[non_exhaustive]
 #[derive(Debug)]
@@ -35,8 +35,11 @@ pub static MEMORY: Once<Memory> = Once::new();
 /// # Safety
 /// This function must be called exactly once, and no page tables should be modified before calling this function.
 pub unsafe fn init_bsp(memory_map: &'static MemoryMapResponse) {
+    // get global allocator to get us frames that are not used by limine or other processes
     let global_allocator_start = unsafe { global_allocator::init(memory_map) };
     let mut physical_memory = PhysicalMemory::new(memory_map, global_allocator_start);
+
+    // map the physical address to virtual memory using cr3 register and frames we found
     let (new_kernel_cr3, new_kernel_cr3_flags, virtual_memory) =
         create_page_tables(memory_map, &mut physical_memory);
     // Safety: page tables are ready to be used

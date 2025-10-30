@@ -7,7 +7,6 @@ use core::{
 use crossbeam_queue::ArrayQueue;
 use futures_util::stream::StreamExt;
 use futures_util::{stream::Stream, task::AtomicWaker};
-use pc_keyboard::ScancodeSet2;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 
 // make sure initialization occurs outside of interrupt handler

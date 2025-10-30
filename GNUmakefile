@@ -36,8 +36,6 @@ run-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).
 		-cdrom $(IMAGE_NAME).iso \
 		-serial stdio \
 		-k en-us \
-		-d int \
-		-gdb tcp::1234
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-x86_64

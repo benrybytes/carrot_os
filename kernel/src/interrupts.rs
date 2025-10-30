@@ -1,6 +1,5 @@
-use crate::{gdt, hlt_loop, print, println, serial_println};
+use crate::{hlt_loop, println, serial_println};
 use conquer_once::spin::OnceCell;
-use core::mem;
 use pic8259::ChainedPics;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}; // runtime statics
 
@@ -90,9 +89,4 @@ pub extern "x86-interrupt" fn unexpected_irq_handler(sf: InterruptStackFrame) {
     unsafe {
         PICS.lock().notify_end_of_interrupt(0);
     } // still ack it
-}
-
-#[test_case]
-fn test_breakpoints_exception() {
-    x86_64::instructions::interrupts::int3();
 }

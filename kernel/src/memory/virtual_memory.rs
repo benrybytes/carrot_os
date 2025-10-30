@@ -5,7 +5,6 @@ use nodit::{
     interval::{ii, iu},
     InclusiveInterval, Interval, NoditSet,
 };
-use x86_64::VirtAddr;
 
 use crate::x86_64_consts::HIGHER_HALF_START;
 

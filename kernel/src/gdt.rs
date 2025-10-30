@@ -1,3 +1,10 @@
+use crate::{
+    // cpu_local_data::get_local,
+    Stack,
+    StackId,
+    StackType,
+    EXCEPTION_HANDLER_STACK_SIZE,
+};
 use conquer_once::spin::OnceCell;
 use lazy_static::lazy_static;
 use x86_64::instructions::segmentation::Segment;
@@ -22,10 +29,15 @@ extern "C" {
 lazy_static! {
     pub static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
-        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-            let stack_top = unsafe { &_stack_end_low as *const u8 as u64 };
-            VirtAddr::new(stack_top)
-        };
+        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = Stack::new(
+                EXCEPTION_HANDLER_STACK_SIZE,
+                // StackId {
+                //      _type: StackType::ExceptionHandler,
+                //      cpu_id: local.kernel_assigned_id,
+                // },
+            )
+            .top();
+
         tss
     };
 }
@@ -63,36 +75,5 @@ pub fn init() {
         CS::set_reg(GDT.1.code_selector);
         SS::set_reg(GDT.1.data_selector);
         load_tss(GDT.1.tss_selector);
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn jump_usermode() {
-    use core::arch::asm;
-    use x86_64::instructions::segmentation::SS;
-    use x86_64::registers::model_specific::{Efer, EferFlags};
-
-    let gdt = GDT_CELL.get().unwrap();
-    unsafe {
-        Efer::update(|flags| {
-            *flags = flags.union(EferFlags::SYSTEM_CALL_EXTENSIONS);
-        });
-        // Set the stack segment before executing IRET
-        SS::set_reg(gdt.1.tss_selector);
-
-        asm!(
-            "mov ds, {0:x}",  // Set DS to user data segment
-            "mov es, {0:x}",  // Set ES to user data segment
-            "mov fs, {0:x}",  // Set FS to user data segment
-            "mov gs, {0:x}",  // Set GS to user data segment
-            "mov rax, rsp",   // Load current stack pointer into RAX
-            "push {0:x}",     // Push data segment selector
-            "push rax",       // Push current stack pointer
-            "pushf",          // Push flags
-            "push {1:x}",     // Push code segment selector
-            "iret",           // Switch to user mode
-            in(reg) gdt.1.user_data_selector.0,
-            in(reg) gdt.1.user_code_selector.0,
-        );
     }
 }

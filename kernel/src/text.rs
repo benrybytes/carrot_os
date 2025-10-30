@@ -132,7 +132,7 @@ impl Writer<'_> {
         // iterate to the string and convert to readable bytes
         for byte in s.bytes() {
             match byte {
-                0x8..0x7f | b'\n' => self.write_byte(byte),
+                0x8..0x7f => self.write_byte(byte),
 
                 // non ASCII characters
                 _ => self.write_byte(0xfe),

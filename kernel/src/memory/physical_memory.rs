@@ -34,6 +34,7 @@ impl PhysicalMemory {
         memory_map: &'static MemoryMapResponse,
         global_allocator_start: PhysAddr,
     ) -> Self {
+        // parses memory map
         Self {
             map: {
                 let mut map = NoditMap::default();
@@ -73,6 +74,7 @@ impl PhysicalMemory {
         }
     }
 
+    // get a frame for our user, kernel, tss, or something else
     pub fn allocate_frame_with_type(
         &mut self,
         page_size: PageSize,
