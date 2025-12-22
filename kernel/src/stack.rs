@@ -11,13 +11,35 @@ use crate::{
 
 pub const KERNEL_NORMAL_STACK_SIZE: u64 = 64 * 0x400;
 pub const EXCEPTION_HANDLER_STACK_SIZE: u64 = 64 * 0x400;
+pub const STACK_PAGE_SIZE: PageSize = PageSize::_4KiB;
+pub static STACK_GUARD_PAGES: spin::Mutex<BTreeMap<Page, StackInfo>> =
+    spin::Mutex::new(BTreeMap::new());
 
 pub struct Stack {
     top: VirtAddr,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum StackType {
+    Normal,
+    ExceptionHandler,
+    SyscallHandler,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StackId {
+    pub _type: StackType,
+    pub cpu_id: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StackInfo {
+    id: StackId,
+    size: u64,
+}
+
 impl Stack {
-    pub fn new(size: u64) -> Stack {
+    pub fn new(id: StackId, size: u64) -> Stack {
         // get memory to create a page table for our stack
         let memory = MEMORY.get().unwrap();
         let mut physical_memory = memory.physical_memory.lock();
@@ -34,7 +56,7 @@ impl Stack {
         let guard_page = Page::new(allocated_pages.start_addr(), STACK_PAGE_SIZE).unwrap();
         STACK_GUARD_PAGES
             .lock()
-            .insert(guard_page, StackInfo { size });
+            .insert(guard_page, StackInfo { id, size });
         // allow offset(0) be for page fault purposes
         let start_page = guard_page.offset(1).unwrap();
 
@@ -77,34 +99,9 @@ impl Stack {
     }
 
     // switch to this stack
-    pub fn switch(self, f: extern "sysv64" fn() -> !) -> ! {
+    pub fn switch(self, f: extern "C" fn() -> !) -> ! {
         let new_rsp = self.top.as_u64();
         // Safety: The worst that can happen is a stack overflow, since we mapped a guard page
         unsafe { call_with_rsp(new_rsp, f) }
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub enum StackType {
-    Normal,
-    ExceptionHandler,
-    SyscallHandler,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct StackId {
-    pub _type: StackType,
-    #[allow(unused)]
-    pub cpu_id: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct StackInfo {
-    // #[allow(unused)]
-    // id: StackId,
-    #[allow(unused)]
-    size: u64,
-}
-pub const STACK_PAGE_SIZE: PageSize = PageSize::_4KiB;
-pub static STACK_GUARD_PAGES: spin::Mutex<BTreeMap<Page, StackInfo>> =
-    spin::Mutex::new(BTreeMap::new());

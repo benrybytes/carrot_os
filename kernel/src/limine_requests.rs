@@ -22,6 +22,7 @@ pub static BASE_REVISION: BaseRevision = BaseRevision::new();
 #[unsafe(link_section = ".requests")]
 pub static FRAME_BUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
+// fetch CPU(s) info using advanced interrupts
 #[used]
 #[unsafe(link_section = ".requests")]
 pub static MP_REQUEST: MpRequest = MpRequest::new().with_flags(RequestFlags::X2APIC);

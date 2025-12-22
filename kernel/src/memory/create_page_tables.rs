@@ -1,15 +1,15 @@
 use core::{ops::Deref, ptr::NonNull};
 
-use ez_paging::{ConfigurableFlags, Frame, ManagedPat, PagingConfig, max_page_size};
+use ez_paging::{max_page_size, ConfigurableFlags, Frame, ManagedPat, PagingConfig};
 use limine::{memory_map::EntryType, response::MemoryMapResponse};
-use nodit::{NoditSet, interval::iu};
+use nodit::{interval::iu, NoditSet};
 use x86_64::{
-    PhysAddr,
     registers::{
         control::{Cr3, Cr3Flags},
         model_specific::PatMemoryType,
     },
     structures::paging::{PageTable, PhysFrame},
+    PhysAddr,
 };
 
 use crate::{
@@ -24,7 +24,8 @@ pub fn create_page_tables(
     memory_map: &'static MemoryMapResponse,
     physical_memory: &mut PhysicalMemory,
 ) -> (PhysFrame, Cr3Flags, VirtualMemory) {
-    let hhdm_offset = hhdm_offset();
+    let hhdm_offset = hhdm_offset(); // where our virtual memory and physical memory offset
+                                     // provided by limine for ease of translation
     let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
     let mut l4 = PagingConfig::new(
         // Safety: we don't touch the PAT

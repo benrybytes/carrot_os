@@ -15,6 +15,7 @@ struct Psf1Header {
 extern "C" {
     static _binary_Cyr_a8x16_psf_start: u8;
     static _binary_Cyr_a8x16_psf_end: u8;
+    static _binary_Cyr_a8x16_psf_size: u8;
 }
 
 fn font_data() -> &'static [u8] {

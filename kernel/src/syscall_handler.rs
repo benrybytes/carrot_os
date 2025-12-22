@@ -13,39 +13,39 @@ use x86_64::{
 };
 
 use crate::{
-    // cpu_local_data::{get_local, CpuLocalData},
+    cpu::{get_local, CpuLocalData},
     stack::{Stack, StackId, StackType},
 };
 
-// #[unsafe(naked)]
-// unsafe extern "sysv64" fn raw_syscall_handler() -> ! {
-//     naked_asm!(
-//         "
-//             // Save the user mode stack pointer
-//             mov gs:[{syscall_handler_scratch_offset}], rsp
-//             // Switch to the kernel stack pointer
-//             mov rsp, gs:[{syscall_handler_stack_pointer_offset}]
-//
-//             // This is input[9]
-//             push gs:[{syscall_handler_scratch_offset}]
-//             // This is input[8]
-//             // Make sure to save `rcx` before modifying it
-//             push rcx
-//             // This is input[7]
-//             push r11
-//             // This is input[6]
-//             push rax
-//             // Convert `syscall`s `r10` input to `sysv64`s `rcx` input
-//             mov rcx, r10
-//             call {syscall_handler}
-//         ",
-//         syscall_handler_scratch_offset = const offset_of!(CpuLocalData, syscall_handler_scratch),
-//         syscall_handler_stack_pointer_offset = const offset_of!(CpuLocalData, syscall_handler_stack_pointer),
-//         syscall_handler = sym syscall_handler,
-//     )
-// }
+#[unsafe(naked)]
+unsafe extern "C" fn raw_syscall_handler() -> ! {
+    naked_asm!(
+        "
+            // Save the user mode stack pointer
+            mov gs:[{syscall_handler_scratch_offset}], rsp
+            // Switch to the kernel stack pointer
+            mov rsp, gs:[{syscall_handler_stack_pointer_offset}]
 
-unsafe extern "sysv64" fn syscall_handler(
+            // This is input[9]
+            push gs:[{syscall_handler_scratch_offset}]
+            // This is input[8]
+            // Make sure to save `rcx` before modifying it
+            push rcx
+            // This is input[7]
+            push r11
+            // This is input[6]
+            push rax
+            // Convert `syscall`s `r10` input to `sysv64`s `rcx` input
+            mov rcx, r10
+            call {syscall_handler}
+        ",
+        syscall_handler_scratch_offset = const offset_of!(CpuLocalData, syscall_handler_scratch),
+        syscall_handler_stack_pointer_offset = const offset_of!(CpuLocalData, syscall_handler_stack_pointer),
+        syscall_handler = sym syscall_handler,
+    )
+}
+
+unsafe extern "C" fn syscall_handler(
     input0: u64,
     input1: u64,
     input2: u64,
@@ -84,17 +84,17 @@ unsafe extern "sysv64" fn syscall_handler(
 }
 
 pub fn init() {
-    // let local = get_local();
+    let local = get_local();
     let syscall_handler_stack = Stack::new(
+        StackId {
+            _type: StackType::SyscallHandler,
+            cpu_id: local.kernel_assigned_id,
+        },
         64 * 0x400,
-        // StackId {
-        //     _type: StackType::SyscallHandler,
-        //     cpu_id: local.kernel_assigned_id,
-        // },
     );
-    // local
-    //     .syscall_handler_stack_pointer
-    //     .store(syscall_handler_stack.top().as_u64(), Ordering::Relaxed);
+    local
+        .syscall_handler_stack_pointer
+        .store(syscall_handler_stack.top().as_u64(), Ordering::Relaxed);
 
     // Enable syscall in IA32_EFER
     // https://shell-storm.org/x86doc/SYSCALL.html
@@ -104,6 +104,9 @@ pub fn init() {
             *flags = flags.union(EferFlags::SYSTEM_CALL_EXTENSIONS);
         })
     };
+
+    // tell cpu syscall exist
+    LStar::write(VirtAddr::from_ptr(raw_syscall_handler as *const ()));
 
     // This tells the CPU the address of our syscall handler
     LStar::write(VirtAddr::from_ptr(raw_syscall_handler as *const ()));
