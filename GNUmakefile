@@ -11,7 +11,6 @@ $(call USER_VARIABLE,KARCH,x86_64)
 # Default user QEMU flags. These are appended to the QEMU command calls.
 $(call USER_VARIABLE,QEMUFLAGS,-m 2G) # start at 2G as we stated in the linker
 
-# override IMAGE_NAME := kernel-$(KARCH)
 override IMAGE_NAME := $(KARCH)-kernel
 
 
@@ -28,7 +27,7 @@ run: run-$(KARCH)
 run-hdd: run-hdd-$(KARCH)
 
 .PHONY: run-x86_64
-run-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).iso
+run-x86_64: ovmf-$(KARCH) $(IMAGE_NAME).iso
 	qemu-system-$(KARCH) \
 		--machine q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-$(KARCH).fd,readonly=on \
@@ -36,13 +35,12 @@ run-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).
 		-cdrom $(IMAGE_NAME).iso \
 		-serial stdio \
 		-k en-us \
-		--smp 30 \
+		--smp 5 \
 		--cpu qemu64,+x2apic \
-		-m 1G \
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-x86_64
-run-hdd-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).hdd
+run-hdd-x86_64: ovmf-$(KARCH) $(IMAGE_NAME).hdd
 	qemu-system-$(KARCH) \
 		-M q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-$(KARCH).fd,readonly=on \
@@ -51,7 +49,7 @@ run-hdd-x86_64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NA
 		$(QEMUFLAGS)
 
 .PHONY: run-aarch64
-run-aarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).iso
+run-aarch64: ovmf-$(KARCH) $(IMAGE_NAME).iso
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu cortex-a72 \
@@ -65,7 +63,7 @@ run-aarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME)
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-aarch64
-run-hdd-aarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).hdd
+run-hdd-aarch64: ovmf-$(KARCH) $(IMAGE_NAME).hdd
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu cortex-a72 \
@@ -79,7 +77,7 @@ run-hdd-aarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_N
 		$(QEMUFLAGS)
 
 .PHONY: run-riscv64
-run-riscv64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).iso
+run-riscv64: ovmf-$(KARCH) $(IMAGE_NAME).iso
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu rv64 \
@@ -93,7 +91,7 @@ run-riscv64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME)
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-riscv64
-run-hdd-riscv64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).hdd
+run-hdd-riscv64: ovmf-$(KARCH) $(IMAGE_NAME).hdd
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu rv64 \
@@ -107,7 +105,7 @@ run-hdd-riscv64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_N
 		$(QEMUFLAGS)
 
 .PHONY: run-loongarch64
-run-loongarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).iso
+run-loongarch64: ovmf-$(KARCH) $(IMAGE_NAME).iso
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu la464 \
@@ -121,7 +119,7 @@ run-loongarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_N
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-loongarch64
-run-hdd-loongarch64: ovmf/ovmf-code-$(KARCH).fd ovmf/ovmf-vars-$(KARCH).fd $(IMAGE_NAME).hdd
+run-hdd-loongarch64: ovmf-$(KARCH) $(IMAGE_NAME).hdd
 	qemu-system-$(KARCH) \
 		-M virt \
 		-cpu la464 \
@@ -150,23 +148,14 @@ run-hdd-bios: $(IMAGE_NAME).hdd
 		-hda $(IMAGE_NAME).hdd \
 		$(QEMUFLAGS)
 
-ovmf/ovmf-code-$(KARCH).fd:
-	mkdir -p ovmf
-	curl -Lo $@ https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-$(KARCH).fd
-	case "$(KARCH)" in \
-		aarch64) dd if=/dev/zero of=$@ bs=1 count=0 seek=67108864 2>/dev/null;; \
-		loongarch64) dd if=/dev/zero of=$@ bs=1 count=0 seek=5242880 2>/dev/null;; \
-		riscv64) dd if=/dev/zero of=$@ bs=1 count=0 seek=33554432 2>/dev/null;; \
-	esac
-
-ovmf/ovmf-vars-$(KARCH).fd:
-	mkdir -p ovmf
-	curl -Lo $@ https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-vars-$(KARCH).fd
-	case "$(KARCH)" in \
-		aarch64) dd if=/dev/zero of=$@ bs=1 count=0 seek=67108864 2>/dev/null;; \
-		loongarch64) dd if=/dev/zero of=$@ bs=1 count=0 seek=5242880 2>/dev/null;; \
-		riscv64) dd if=/dev/zero of=$@ bs=1 count=0 seek=33554432 2>/dev/null;; \
-	esac
+ovmf-$(KARCH):
+	@if [ ! -d ovmf ]; then \
+		wget https://github.com/osdev0/edk2-ovmf-nightly/releases/download/nightly-20251224T012621Z/edk2-ovmf.tar.gz && \
+		tar -xzf edk2-ovmf.tar.gz && \
+		mv edk2-ovmf ovmf; \
+	else \
+		echo "ovmf already exists, skipping download"; \
+	fi
 
 limine/limine:
 	rm -rf limine
@@ -248,10 +237,10 @@ endif
 
 .PHONY: clean
 clean:
-	# $(MAKE) -C kernel clean
-	rm -rf $(IMAGE_NAME).iso $(IMAGE_NAME).hdd kernel
+	$(MAKE) -C ./kernel/src/ clean
+	rm -rf $(IMAGE_NAME).iso $(IMAGE_NAME).hdd
 
 .PHONY: distclean
 distclean: clean
-	$(MAKE) -C kernel distclean
+	$(MAKE) -C distclean
 	rm -rf limine ovmf iso_root

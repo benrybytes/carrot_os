@@ -39,7 +39,6 @@ all:
 .PHONY: clean
 clean:
 	cargo clean
-	rm -rf kernel
 
 .PHONY: distclean
 distclean: clean

@@ -1,13 +1,16 @@
 use core::num::NonZero;
 
-use acpi::{platform::InterruptModel, AcpiTables};
+use acpi::{address, platform::InterruptModel, AcpiTables};
 use ez_paging::{ConfigurableFlags, Frame, PageSize};
 use force_send_sync::SendSync;
 use spin::Once;
-use x2apic::lapic::{cpu_has_x2apic, LocalApicBuilder};
+use x2apic::{
+    ioapic::{self, IrqFlags, RedirectionTableEntry},
+    lapic::{cpu_has_x2apic, LocalApicBuilder},
+};
 use x86_64::{registers::model_specific::PatMemoryType, PhysAddr, VirtAddr};
 
-use crate::{cpu::get_local, memory::MEMORY, InterruptVector};
+use crate::{cpu::get_local, memory::MEMORY, serial_println, InterruptVector};
 
 #[derive(Debug)]
 pub enum LocalApicAccess {
@@ -27,8 +30,10 @@ pub fn init_bsp(acpi_tables: &AcpiTables<impl acpi::Handler>) {
     };
     LOCAL_APIC_ACCESS.call_once(|| {
         if cpu_has_x2apic() {
+            serial_println!("have x2apic");
             LocalApicAccess::RegisterBased
         } else {
+            serial_println!("does not have x2apic");
             let page_size = PageSize::_4KiB;
             let frame = Frame::new(PhysAddr::new(apic.local_apic_address), page_size).unwrap();
             // Local APIC is always exactly 4 KiB, aligned to 4 KiB
@@ -65,9 +70,12 @@ pub fn init_local_apic() {
             let local_apic = {
                 let mut builder = LocalApicBuilder::new();
                 // We only need to use `set_xapic_base` if x2APIC is not supported
+                serial_println!("check if mmio");
                 if let LocalApicAccess::Mmio(address) = LOCAL_APIC_ACCESS.get().unwrap() {
+                    serial_println!("mmio enable");
                     builder.set_xapic_base(address.as_u64());
                 }
+
                 builder.spurious_vector(u8::from(InterruptVector::LocalApicSpurious).into());
                 builder.error_vector(u8::from(InterruptVector::LocalApicError).into());
                 builder.timer_vector(u8::from(InterruptVector::LocalApicTimer).into());
@@ -75,7 +83,7 @@ pub fn init_local_apic() {
                 // Safety: We are ready to handle interrupts (and interrupts are disabled anyways)
                 unsafe { local_apic.enable() };
                 // Safety: We don't need the timer to be on
-                unsafe { local_apic.disable_timer() };
+                // unsafe { local_apic.disable_timer() };
                 local_apic
             };
             // Safety: The only reason why LocalApic is marked as !Send and !Sync is because it cannot be accessed across CPUs. We are only accessing it from this CPU.

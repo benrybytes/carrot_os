@@ -5,9 +5,9 @@
 #![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use core::panic::PanicInfo;
 use kernel::{exit_qemu, serial_println, QemuExitCode};
 use kernel::{gdt, serial_print, test_panic_handler};
-use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 

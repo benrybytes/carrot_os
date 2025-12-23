@@ -20,11 +20,10 @@ SECTIONS
     . = ORIGIN(rom);
     _kernel_start = .;
 
-    .text : AT(ADDR(.text)) {
-        *(.text .text.*)
-        *(.rodata*)
-        *(.rodata.*)
-    } > rom :text
+	.text : ALIGN(4K) {
+	  *(.text*)
+	  *(.rodata*)
+	}
 
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 

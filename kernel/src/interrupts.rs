@@ -1,3 +1,5 @@
+#![feature(abi_x86_interrupt)] // allow test to continue after interrupt
+
 use core::sync::atomic::Ordering;
 
 use crate::{
@@ -12,27 +14,14 @@ use conquer_once::spin::OnceCell;
 use pic8259::ChainedPics;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}; // runtime statics
 
-pub const PIC_1_OFFSET: u8 = 32;
-pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
-
-pub static PICS: spin::Mutex<ChainedPics> =
-    spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
-
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,
-    Keyboard,
-}
-
-impl InterruptIndex {
-    pub fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    pub fn as_usize(self) -> usize {
-        self as u8 as usize
-    }
+// finish in apic, rather than legacy PIC
+unsafe fn end_of_interrupt() {
+    get_local()
+        .local_apic
+        .get()
+        .unwrap()
+        .lock()
+        .end_of_interrupt();
 }
 
 fn handle_panic_originating_on_other_cpu() -> ! {
@@ -40,14 +29,17 @@ fn handle_panic_originating_on_other_cpu() -> ! {
 }
 
 extern "x86-interrupt" fn nmi_handler(_stack_frame: InterruptStackFrame) {
-    handle_panic_originating_on_other_cpu()
+    handle_panic_originating_on_other_cpu();
 }
 
 // @param stack_frame pointers to exception handlers
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("exception: breakpoint\n {:#?}", stack_frame);
+    unsafe { end_of_interrupt() };
 }
 
+// examples include: uninitalized interrupts, incorrect mapping to interrupts like 0x21 works for
+// keyboard, but 0x31 does not
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
@@ -83,28 +75,21 @@ pub extern "x86-interrupt" fn page_fault_handler(
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use x86_64::instructions::port::Port;
 
-    let mut port = Port::new(0x60);
-    let scancode: u8 = unsafe { port.read() };
+    let is_bsp = unsafe { get_local().local_apic.get().unwrap().lock().is_bsp() };
+    let scancode: u8 = unsafe { Port::new(0x60).read() };
     crate::task::keyboard::add_scancode(scancode);
-
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
-    }
+    unsafe { end_of_interrupt() };
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_sf: InterruptStackFrame) {
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
-    }
+    // We must notify the local APIC that it's the end of interrupt, otherwise we won't receive any more interrupts from it
+    // Safety: We are done with an interrupt triggered by the local APIC
+    unsafe { end_of_interrupt() };
 }
 
 extern "x86-interrupt" fn unexpected_irq_handler(sf: InterruptStackFrame) {
     println!("Unhandled IRQ! {:#?}", sf);
-    unsafe {
-        PICS.lock().notify_end_of_interrupt(0);
-    } // still ack it
+    unsafe { end_of_interrupt() };
 }
 
 pub fn init() {
@@ -130,13 +115,16 @@ pub fn init() {
         }
         idt.non_maskable_interrupt.set_handler_fn(nmi_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);
-        idt[InterruptIndex::Keyboard as u8].set_handler_fn(keyboard_interrupt_handler);
+        // should be 0x31 since we already mapped it in our ioapic and is ready for that module
+        idt[0x31].set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptVector::LocalApicTimer as u8].set_handler_fn(timer_interrupt_handler);
 
         idt
     });
 
     idt.load();
+
+    // serial_println!("is_bsp: {}", is_bsp);
     // Now that we loaded the IDT, we are ready to receive NMIs to handle interrupts for each CPU
     // Let's update our state to indicate that we are ready to receive NMIs
     if NMI_HANDLER_STATES.get().unwrap()[local.kernel_assigned_id as usize]
@@ -153,9 +141,9 @@ pub fn init() {
         handle_panic_originating_on_other_cpu()
     };
 
-    unsafe {
-        PICS.lock().initialize();
-        PICS.lock().write_masks(0b11111100, 0x0);
-    }
+    // unsafe {
+    //     PICS.lock().initialize();
+    //     PICS.lock().write_masks(0b11111100, 0x0);
+    // }
     x86_64::instructions::interrupts::enable();
 }

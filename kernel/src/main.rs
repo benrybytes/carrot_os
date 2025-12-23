@@ -17,6 +17,7 @@ use hhdm_offset::*;
 use interrupt_vector::*;
 use interrupts::*;
 use limine_requests::*;
+use local_ioapic::*;
 use memory::*;
 use nmi_handler_states::*;
 use serial::*;
@@ -38,6 +39,7 @@ mod hhdm_offset;
 mod interrupt_vector;
 mod interrupts;
 mod limine_requests;
+mod local_ioapic;
 mod memory;
 mod nmi_handler_states;
 mod serial;
@@ -72,33 +74,47 @@ unsafe extern "C" fn kmain() -> ! {
     .switch(init_bsp);
 }
 
+unsafe fn disable_pic() {
+    use x86_64::instructions::port::Port;
+
+    let mut pic1 = Port::<u8>::new(0x21);
+    let mut pic2 = Port::<u8>::new(0xA1);
+
+    pic1.write(0xFF);
+    pic2.write(0xFF);
+}
+
 extern "C" fn init_bsp() -> ! {
     nmi_handler_states::init(); // initialize CPU to handle interrupts before we can init
     use crate::executor::Executor;
     use alloc::boxed::Box;
-    use interrupts::InterruptIndex;
     use x86_64::structures::idt::InterruptDescriptorTable; // runtime statics
-    gdt::init();
-    interrupts::init();
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(keyboard::print_keypresses()));
 
     // multiple cpu request in bsp to be used throughout all cpus
+    // get ACPI to be available
     let rsdp = RSDP_REQUEST.get_response().unwrap();
     let acpi_tables = acpi::parse(rsdp);
+    local_ioapic::init_ioapic(&acpi_tables);
     spcr::init(&acpi_tables);
     apic::init_bsp(&acpi_tables);
     apic::init_local_apic();
 
     let mp_response = MP_REQUEST.get_response().unwrap();
 
+    gdt::init();
+    interrupts::init();
+
     // set entry_point for each cpu
     for cpu in mp_response.cpus() {
         cpu.goto_address.write(entry_point_ap);
     }
-
+    // Safety: Disabling PIC
+    unsafe {
+        disable_pic();
+    }
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run();
-    hlt_loop();
 }
 
 // initialize cpu core
