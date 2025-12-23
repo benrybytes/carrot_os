@@ -7,25 +7,8 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-use kernel::allocator::_heap_size;
 use core::panic::PanicInfo;
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-unsafe extern "C" fn kmain() -> ! {
-    use kernel::allocator;
-    use kernel::memory::{self, BootInfoFrameAllocator};
-    use x86_64::VirtAddr;
-
-    kernel::init();
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("could not initialize heap");
-
-    test_main();
-    loop {}
-}
+use kernel::allocator::_heap_size;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

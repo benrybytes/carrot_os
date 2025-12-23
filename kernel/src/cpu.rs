@@ -99,3 +99,11 @@ pub fn try_get_local() -> Option<&'static CpuLocalData> {
 pub fn get_local() -> &'static CpuLocalData {
     try_get_local().unwrap()
 }
+
+/// Get the Local APIC id of a CPU from the CPU's kernel assigned id
+pub fn local_apic_id_of(kernel_assigned_id: u32) -> u32 {
+    CPU_LOCAL_DATA[kernel_assigned_id as usize]
+        .get()
+        .unwrap()
+        .local_apic_id
+}

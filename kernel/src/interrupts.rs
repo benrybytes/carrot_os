@@ -1,4 +1,13 @@
-use crate::{gdt::IstStackIndexes, hlt_loop, println, serial_println};
+use core::sync::atomic::Ordering;
+
+use crate::{
+    cpu::get_local,
+    gdt::IstStackIndexes,
+    hlt_loop,
+    interrupt_vector::InterruptVector,
+    nmi_handler_states::{NmiHandlerState, NMI_HANDLER_STATES},
+    println, serial_println,
+};
 use conquer_once::spin::OnceCell;
 use pic8259::ChainedPics;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}; // runtime statics
@@ -8,7 +17,6 @@ pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
 pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
-pub static IDT_CELL: OnceCell<InterruptDescriptorTable> = OnceCell::uninit();
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -25,6 +33,14 @@ impl InterruptIndex {
     pub fn as_usize(self) -> usize {
         self as u8 as usize
     }
+}
+
+fn handle_panic_originating_on_other_cpu() -> ! {
+    hlt_loop()
+}
+
+extern "x86-interrupt" fn nmi_handler(_stack_frame: InterruptStackFrame) {
+    handle_panic_originating_on_other_cpu()
 }
 
 // @param stack_frame pointers to exception handlers
@@ -92,9 +108,10 @@ extern "x86-interrupt" fn unexpected_irq_handler(sf: InterruptStackFrame) {
 }
 
 pub fn init() {
+    let local = get_local();
     // allow time for GDT to be initialized with its segments, else general protection fault inside
     // double fault occur
-    let idt = IDT_CELL.get_or_init(|| {
+    let idt = local.idt.call_once(|| {
         let mut idt = InterruptDescriptorTable::new();
 
         for i in 33..48 {
@@ -111,14 +128,31 @@ pub fn init() {
                 .set_handler_fn(general_protection_fault)
                 .set_stack_index(u8::from(IstStackIndexes::Exception).into());
         }
+        idt.non_maskable_interrupt.set_handler_fn(nmi_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         idt[InterruptIndex::Keyboard as u8].set_handler_fn(keyboard_interrupt_handler);
-        idt[InterruptIndex::Timer.as_u8()].set_handler_fn(timer_interrupt_handler);
+        idt[InterruptVector::LocalApicTimer as u8].set_handler_fn(timer_interrupt_handler);
 
         idt
     });
 
     idt.load();
+    // Now that we loaded the IDT, we are ready to receive NMIs to handle interrupts for each CPU
+    // Let's update our state to indicate that we are ready to receive NMIs
+    if NMI_HANDLER_STATES.get().unwrap()[local.kernel_assigned_id as usize]
+        .compare_exchange(
+            NmiHandlerState::NmiHandlerNotSet,
+            NmiHandlerState::NmiHandlerSet,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        )
+        .is_err()
+    {
+        // `compare_exchange` will "fail" if the value is currently not what we expected it to be.
+        // In this case, the kernel already panicked and updated our state to `KernelPanicked` before we tried to indicate that we are ready to receive NMIs.
+        handle_panic_originating_on_other_cpu()
+    };
+
     unsafe {
         PICS.lock().initialize();
         PICS.lock().write_masks(0b11111100, 0x0);
