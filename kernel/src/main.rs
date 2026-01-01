@@ -3,7 +3,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(let_chains)]
 
-use core::{panic::PanicInfo, sync::atomic::Ordering};
+use core::{arch::asm, panic::PanicInfo, sync::atomic::Ordering};
 
 extern crate alloc; // import again to use allocation
 
@@ -27,6 +27,7 @@ use syscall_handler::*;
 use task::*;
 use text::*;
 use translate_addr::*;
+use usermode::*;
 use x86_64_consts::*;
 
 mod acpi;
@@ -49,6 +50,7 @@ mod syscall_handler;
 mod task;
 mod text;
 mod translate_addr;
+mod usermode;
 mod x86_64_consts;
 
 #[unsafe(no_mangle)]
@@ -70,6 +72,7 @@ unsafe extern "C" fn kmain() -> ! {
             cpu_id: local.kernel_assigned_id,
         },
         KERNEL_NORMAL_STACK_SIZE,
+        MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
     )
     .switch(init_bsp);
 }
@@ -112,8 +115,10 @@ extern "C" fn init_bsp() -> ! {
     unsafe {
         disable_pic();
     }
+
     let mut executor = Executor::new();
     executor.spawn(Task::new(keyboard::print_keypresses()));
+    enter_user_mode();
     executor.run();
 }
 
@@ -133,6 +138,7 @@ unsafe extern "C" fn entry_point_ap(cpu: &limine::mp::Cpu) -> ! {
             cpu_id: get_local().kernel_assigned_id,
         },
         KERNEL_NORMAL_STACK_SIZE,
+        MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
     )
     .switch(init_ap)
 }

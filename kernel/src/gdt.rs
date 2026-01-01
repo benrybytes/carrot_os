@@ -1,3 +1,4 @@
+use crate::memory::{KernelMemoryUsageType, MemoryType};
 use crate::{cpu::get_local, Stack, StackId, StackType, EXCEPTION_HANDLER_STACK_SIZE};
 use conquer_once::spin::OnceCell;
 use lazy_static::lazy_static;
@@ -38,6 +39,7 @@ pub fn init() {
                 cpu_id: local.kernel_assigned_id,
             },
             EXCEPTION_HANDLER_STACK_SIZE,
+            MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
         )
         .top();
 

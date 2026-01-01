@@ -14,6 +14,7 @@ use x86_64::{
 
 use crate::{
     cpu::{get_local, CpuLocalData},
+    memory::{KernelMemoryUsageType, MemoryType},
     stack::{Stack, StackId, StackType},
 };
 
@@ -91,6 +92,7 @@ pub fn init() {
             cpu_id: local.kernel_assigned_id,
         },
         64 * 0x400,
+        MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
     );
     local
         .syscall_handler_stack_pointer

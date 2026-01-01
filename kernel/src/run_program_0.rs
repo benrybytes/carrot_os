@@ -121,6 +121,12 @@ pub fn run_program_0() {
                 let start = start_frame.start_addr().as_u64();
                 ie(start, start + file_pages_len * page_size.byte_len_u64())
             };
+            let mut user_l4 = memory.virtual_memory.lock().l4_mut().new_user(
+                physical_memory
+                    .get_user_mode_program_frame_allocator()
+                    .allocate_4kib_frame()
+                    .unwrap(),
+            );
             let _ = physical_memory.map_mut().cut(interval);
             physical_memory
                 .map_mut()

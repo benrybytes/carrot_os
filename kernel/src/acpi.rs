@@ -5,7 +5,7 @@ use ez_paging::{max_page_size, ConfigurableFlags, Frame, Page};
 use limine::response::RsdpResponse;
 use x86_64::{registers::model_specific::PatMemoryType, PhysAddr, VirtAddr};
 
-use crate::memory::MEMORY;
+use crate::memory::{KernelMemoryUsageType, MemoryType, MEMORY};
 
 /// Note: this cannot be sent across CPUs because the other CPUs did not flush their cache for changes in page tables
 #[derive(Debug, Clone)]
@@ -28,6 +28,7 @@ impl acpi::Handler for KernelAcpiHandler {
             .allocate_contiguous_pages(
                 page_size,
                 NonZero::new(n_pages).expect("at least 1 byte mapped"),
+                MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
             )
             .unwrap();
 

@@ -1,15 +1,19 @@
-use core::num::NonZero;
+use core::{mem, num::NonZero};
 
 use alloc::collections::btree_map::BTreeMap;
 use ez_paging::{ConfigurableFlags, Page, PageSize};
-use x86_64::{registers::model_specific::PatMemoryType, VirtAddr};
+use x86_64::{
+    registers::model_specific::PatMemoryType, structures::paging::PageTableFlags, VirtAddr,
+};
 
 use crate::{
     call_with_rsp,
     memory::{KernelMemoryUsageType, MemoryType, MEMORY},
+    println,
 };
 
 pub const KERNEL_NORMAL_STACK_SIZE: u64 = 64 * 0x400;
+pub const USER_NORMAL_STACK_SIZE: u64 = 64 * 0x400;
 pub const EXCEPTION_HANDLER_STACK_SIZE: u64 = 64 * 0x400;
 pub const STACK_PAGE_SIZE: PageSize = PageSize::_4KiB;
 pub static STACK_GUARD_PAGES: spin::Mutex<BTreeMap<Page, StackInfo>> =
@@ -39,7 +43,7 @@ pub struct StackInfo {
 }
 
 impl Stack {
-    pub fn new(id: StackId, size: u64) -> Stack {
+    pub fn stack_maker(id: StackId, size: u64, memory_type: MemoryType) -> (Page, u64) {
         // get memory to create a page table for our stack
         let memory = MEMORY.get().unwrap();
         let mut physical_memory = memory.physical_memory.lock();
@@ -50,7 +54,11 @@ impl Stack {
 
         // gets pages ready for mapping to physical memory
         let allocated_pages = virtual_memory
-            .allocate_contiguous_pages(STACK_PAGE_SIZE, NonZero::new(n_virtual_pages).unwrap())
+            .allocate_contiguous_pages(
+                STACK_PAGE_SIZE,
+                NonZero::new(n_virtual_pages).unwrap(),
+                memory_type,
+            )
             .unwrap();
 
         let guard_page = Page::new(allocated_pages.start_addr(), STACK_PAGE_SIZE).unwrap();
@@ -63,32 +71,62 @@ impl Stack {
         // create frames for our pages
         for i in 0..n_mapped_pages {
             let page = start_page.offset(i).unwrap();
+            // assert!(page.start_addr().as_u64() < 0x0000_8000_0000_0000);
+
             let frame = physical_memory
                 .allocate_frame_with_type(
                     STACK_PAGE_SIZE,
-                    MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
+                    memory_type, // MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
                 )
                 .unwrap();
+
             let flags = ConfigurableFlags {
                 writable: true,
                 executable: false,
                 pat_memory_type: PatMemoryType::WriteBack,
             };
-            let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
+            match memory_type {
+                MemoryType::UsedByKernel(_) => {
+                    let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
+                    // use frame allocator to use the fram it created, to map the page to the frame to the
+                    // physical memory's page frame
+                    // let ez_paging do the heavy lifting for l4 page table
+                    unsafe {
+                        virtual_memory
+                            .l4_mut()
+                            .map_page(page, frame, flags, &mut frame_allocator)
+                    }
+                    .unwrap();
+                }
+                MemoryType::UsedByUserMode => {
+                    let mut frame_allocator =
+                        physical_memory.get_user_mode_program_frame_allocator();
+                    // use frame allocator to use the fram it created, to map the page to the frame to the
+                    // physical memory's page frame
+                    // let ez_paging do the heavy lifting for l4 page table
+                    let mut user_l4 = virtual_memory.l4_mut().new_user(
+                        frame_allocator
+                            .allocate_4kib_frame()
+                            .expect("could not allocate _4KiB frame"),
+                    );
 
-            // use frame allocator to use the fram it created, to map the page to the frame to the
-            // physical memory's page frame
-            // let ez_paging do the heavy lifting for l4 page table
-            unsafe {
-                virtual_memory
-                    .l4_mut()
-                    .map_page(page, frame, flags, &mut frame_allocator)
-            }
-            .unwrap();
+                    unsafe { user_l4.map_page(page, frame, flags, &mut frame_allocator) }
+                        .expect("could not map page");
+
+                    unsafe {
+                        user_l4.switch_to(memory.new_kernel_cr3_flags);
+                    }
+                }
+                _ => (),
+            };
         }
-
+        println!("created stack");
+        (start_page, n_mapped_pages)
+    }
+    pub fn new(id: StackId, size: u64, memory_type: MemoryType) -> Stack {
         // remember, we want to start at the last page, and build ourselves down due to FIFO
         // principle for stack
+        let (start_page, n_mapped_pages) = Stack::stack_maker(id, size, memory_type);
         Self {
             top: (start_page.start_addr() + n_mapped_pages * STACK_PAGE_SIZE.byte_len_u64()),
         }

@@ -9,7 +9,7 @@ use ez_paging::{max_page_size, ConfigurableFlags, Frame};
 use uart::{address::MmioAddress, writer::UartWriter};
 use x86_64::{registers::model_specific::PatMemoryType, PhysAddr};
 
-use crate::memory::MEMORY;
+use crate::memory::{KernelMemoryUsageType, MemoryType, MEMORY};
 
 /// Checks for SPCR, and sets logger to log through SPCR instead of COM1 accordingly
 pub fn init(acpi_tables: &AcpiTables<impl acpi::Handler>) {
@@ -51,7 +51,11 @@ pub fn init(acpi_tables: &AcpiTables<impl acpi::Handler>) {
             let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
             let mut virtual_memory = memory.virtual_memory.lock();
             let start_page = virtual_memory
-                .allocate_contiguous_pages(page_size, NonZero::new(n_pages).unwrap())
+                .allocate_contiguous_pages(
+                    page_size,
+                    NonZero::new(n_pages).unwrap(),
+                    MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
+                )
                 .unwrap();
             for i in 0..n_pages {
                 let page = start_page.offset(i).unwrap();

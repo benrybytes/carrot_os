@@ -10,7 +10,11 @@ use x2apic::{
 };
 use x86_64::{registers::model_specific::PatMemoryType, PhysAddr, VirtAddr};
 
-use crate::{cpu::get_local, memory::MEMORY, serial_println, InterruptVector};
+use crate::{
+    cpu::get_local,
+    memory::{KernelMemoryUsageType, MemoryType, MEMORY},
+    serial_println, InterruptVector,
+};
 
 #[derive(Debug)]
 pub enum LocalApicAccess {
@@ -42,7 +46,11 @@ pub fn init_bsp(acpi_tables: &AcpiTables<impl acpi::Handler>) {
             let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
             let mut virtual_memory = memory.virtual_memory.lock();
             let page = virtual_memory
-                .allocate_contiguous_pages(page_size, NonZero::new(1).unwrap())
+                .allocate_contiguous_pages(
+                    page_size,
+                    NonZero::new(1).unwrap(),
+                    MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
+                )
                 .unwrap();
             let flags = ConfigurableFlags {
                 writable: true,

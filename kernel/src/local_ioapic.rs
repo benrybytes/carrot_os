@@ -9,7 +9,10 @@ use uart_16550::MmioSerialPort;
 use x2apic::ioapic::{self, IrqFlags, RedirectionTableEntry};
 use x86_64::{registers::model_specific::PatMemoryType, PhysAddr, VirtAddr};
 
-use crate::{memory::MEMORY, serial_println};
+use crate::{
+    memory::{KernelMemoryUsageType, MemoryType, MEMORY},
+    serial_println,
+};
 
 pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
     // Parse MADT
@@ -77,7 +80,11 @@ pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
         let mut virtual_memory = memory.virtual_memory.lock();
 
         let page = virtual_memory
-            .allocate_contiguous_pages(page_size, NonZero::new(1).unwrap())
+            .allocate_contiguous_pages(
+                page_size,
+                NonZero::new(1).unwrap(),
+                MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
+            )
             .unwrap();
 
         let flags = ConfigurableFlags {
