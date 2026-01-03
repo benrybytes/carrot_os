@@ -10,6 +10,7 @@ use crate::{
     call_with_rsp,
     memory::{KernelMemoryUsageType, MemoryType, MEMORY},
     println,
+    x86_64_consts::{LOWER_HALF_END, USER_SPACE_END},
 };
 
 pub const KERNEL_NORMAL_STACK_SIZE: u64 = 64 * 0x400;
@@ -66,61 +67,49 @@ impl Stack {
             .lock()
             .insert(guard_page, StackInfo { id, size });
         // allow offset(0) be for page fault purposes
-        let start_page = guard_page.offset(1).unwrap();
+        let (start_page, l4) = (guard_page.offset(1).unwrap(), virtual_memory.l4_mut());
 
+        let flags = ConfigurableFlags {
+            writable: true,
+            executable: false,
+            pat_memory_type: PatMemoryType::WriteBack,
+        };
         // create frames for our pages
         for i in 0..n_mapped_pages {
             let page = start_page.offset(i).unwrap();
-            // assert!(page.start_addr().as_u64() < 0x0000_8000_0000_0000);
-
             let frame = physical_memory
-                .allocate_frame_with_type(
-                    STACK_PAGE_SIZE,
-                    memory_type, // MemoryType::UsedByKernel(KernelMemoryUsageType::Stack),
-                )
+                .allocate_frame_with_type(STACK_PAGE_SIZE, memory_type)
                 .unwrap();
-
-            let flags = ConfigurableFlags {
-                writable: true,
-                executable: false,
-                pat_memory_type: PatMemoryType::WriteBack,
-            };
-            match memory_type {
-                MemoryType::UsedByKernel(_) => {
-                    let mut frame_allocator = physical_memory.get_kernel_frame_allocator();
-                    // use frame allocator to use the fram it created, to map the page to the frame to the
-                    // physical memory's page frame
-                    // let ez_paging do the heavy lifting for l4 page table
-                    unsafe {
-                        virtual_memory
-                            .l4_mut()
-                            .map_page(page, frame, flags, &mut frame_allocator)
-                    }
-                    .unwrap();
-                }
+            let mut frame_allocator = match memory_type {
                 MemoryType::UsedByUserMode => {
-                    let mut frame_allocator =
-                        physical_memory.get_user_mode_program_frame_allocator();
-                    // use frame allocator to use the fram it created, to map the page to the frame to the
-                    // physical memory's page frame
-                    // let ez_paging do the heavy lifting for l4 page table
-                    let mut user_l4 = virtual_memory.l4_mut().new_user(
+                    physical_memory.get_user_mode_program_frame_allocator()
+                }
+                _ => physical_memory.get_kernel_frame_allocator(),
+            };
+
+            match memory_type {
+                // have to get the managed page table for user access
+                MemoryType::UsedByUserMode => {
+                    let mut l4 = l4.new_user(
                         frame_allocator
                             .allocate_4kib_frame()
                             .expect("could not allocate _4KiB frame"),
                     );
-
-                    unsafe { user_l4.map_page(page, frame, flags, &mut frame_allocator) }
-                        .expect("could not map page");
-
                     unsafe {
-                        user_l4.switch_to(memory.new_kernel_cr3_flags);
+                        l4.switch_to(memory.new_kernel_cr3_flags);
                     }
+                    // Safety: we would have to handle any page faults if invalid permissions occur
+                    unsafe { l4.map_page(page, frame, flags, &mut frame_allocator) }
+                        .expect("could not map page");
                 }
-                _ => (),
-            };
+                // just continue with our original page table
+                _ => {
+                    // Safety: we would have to handle any page faults if invalid permissions occur
+                    unsafe { l4.map_page(page, frame, flags, &mut frame_allocator) }
+                        .expect("could not map page");
+                }
+            }
         }
-        println!("created stack");
         (start_page, n_mapped_pages)
     }
     pub fn new(id: StackId, size: u64, memory_type: MemoryType) -> Stack {

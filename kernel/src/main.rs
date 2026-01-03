@@ -116,10 +116,14 @@ extern "C" fn init_bsp() -> ! {
         disable_pic();
     }
 
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(keyboard::print_keypresses()));
+    // let mut executor = Executor::new();
+    // executor.spawn(Task::new(keyboard::print_keypresses()));
     enter_user_mode();
-    executor.run();
+    // let ptr = 0xFFFF_8000_0000_0000u64 as *const u64;
+    // let _val = unsafe { *ptr };
+    // println!("in user ring 3");
+    // executor.run();
+    loop {}
 }
 
 // initialize cpu core

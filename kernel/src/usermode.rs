@@ -21,7 +21,6 @@ pub fn enter_user_mode() {
     let local = get_local();
     let gdt = local.gdt.get().unwrap();
 
-    serial_println!("about to enter ring3");
     let user_stack = Stack::new(
         StackId {
             _type: StackType::Normal,
@@ -41,14 +40,13 @@ pub fn enter_user_mode() {
             "or rax, 0x200",          // Enable Interrupts in RFLAGS
             "push rax",
             "push {user_cs}",         // CS (Code Segment)
-            "push {user_ip}",         // RIP
+            // "push {user_ip}",         // RIP
             "iretq",
             user_ds = in(reg) gdt.user_data_selector.0,
             user_sp = in(reg) user_stack.top().as_u64(),
             user_cs = in(reg) gdt.user_code_selector.0,
-            user_ip = in(reg) test_user_function as u64,
+            // user_ip = in(reg) test_user_function as u64,
             options(noreturn)
         )
     };
-    serial_println!("in ring3 >:3 mwahahah");
 }
