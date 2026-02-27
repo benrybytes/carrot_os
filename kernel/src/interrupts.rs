@@ -116,7 +116,7 @@ pub fn init() {
         idt.non_maskable_interrupt.set_handler_fn(nmi_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         // should be 0x31 since we already mapped it in our ioapic and is ready for that module
-        idt[0x31].set_handler_fn(keyboard_interrupt_handler);
+        idt[0xFE].set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptVector::LocalApicTimer as u8].set_handler_fn(timer_interrupt_handler);
 
         idt

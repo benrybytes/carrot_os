@@ -35,7 +35,7 @@ pub fn enter_user_mode() {
             "cli",
             "push {user_ds}",         // SS (Stack Segment)
             "push {user_sp}",         // RSP
-            "pushfq",                 // RFLAGS
+            "pushfq",                 // RFLAGS to only resume program
             "pop rax",
             "or rax, 0x200",          // Enable Interrupts in RFLAGS
             "push rax",

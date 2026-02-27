@@ -1,3 +1,5 @@
+// module important for critical hardware interrupts
+
 use alloc::boxed::Box;
 use atomic_enum::atomic_enum;
 use spin::Once;

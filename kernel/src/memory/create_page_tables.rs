@@ -19,7 +19,7 @@ use crate::{
 
 use super::{physical_memory::PhysicalMemory, virtual_memory::VirtualMemory};
 
-/// Creates new page tables, but does not switch to them
+/// Creates new page tables for kernel, but does not switch to them
 pub fn create_page_tables(
     memory_map: &'static MemoryMapResponse,
     physical_memory: &mut PhysicalMemory,
@@ -105,6 +105,9 @@ pub fn create_page_tables(
         // Safety: we are just going to copy the last entry, and not modify that region's mappings
         unsafe { ptr.as_mut() }
     };
+
+    // kernel specified page table, being 511, will get errors if accessed for user space, so
+    // should be seperated
     new_l4_page_table[511].clone_from(&current_l4_page_table[511]);
 
     (

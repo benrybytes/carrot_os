@@ -17,12 +17,12 @@ use crate::{
 pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
     // Parse MADT
     let madt_table = acpi_tables.find_table::<Madt>().unwrap();
-    let mut keyboard_gsi = None;
     let mut ioapic_phys = None;
     let mut ioapic_gsi_base = None;
 
     for entry in madt_table.get().entries() {
         match entry {
+            // multiple process controller for any global interrupts
             MadtEntry::IoApic(ioapic) => {
                 let _id = ioapic.io_apic_id;
                 let _addr = ioapic.io_apic_address;
@@ -38,22 +38,21 @@ pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
                 ioapic_gsi_base = Some(_gsi_base);
                 ioapic_phys = Some(_addr);
             }
+            // if we want to override an interupt at a specific CPU core
             MadtEntry::InterruptSourceOverride(iso) => {
                 let _bus = iso.bus;
                 let _flags = iso.flags;
                 let _irq = iso.irq;
-                let _keyboard_gsi = iso.global_system_interrupt;
+                let _gsi = iso.global_system_interrupt;
                 serial_println!(
                     "ISO: bus={} irq={} gsi={} flags={:?}",
                     _bus,
                     _irq,
-                    _keyboard_gsi,
+                    _gsi,
                     _flags
                 );
-                if _irq == 1 {
-                    keyboard_gsi = Some(_keyboard_gsi);
-                }
             }
+            // CPU information
             MadtEntry::LocalApic(local) => {
                 serial_println!(
                     "LAPIC: cpu={} apic_id={}",
@@ -65,6 +64,7 @@ pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
         }
     }
 
+    // setup rerouting of interrupts to our ioapic
     if let Some(ioapic_phys) = ioapic_phys
         && let Some(ioapic_gsi_base) = ioapic_gsi_base
     {
@@ -101,8 +101,11 @@ pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
         .unwrap();
         let mut ioapic_init = unsafe { ioapic::IoApic::new(page.start_addr().as_u64()) };
         serial_println!("ioapic init");
+
+        // Safety:
         unsafe {
-            serial_println!("enter default entry");
+            // redirect interrupts to ioapic to get keyboard to be setup by ioapic gsi (cpu
+            // interrupts)
             let mut default_entry = RedirectionTableEntry::default();
             serial_println!("enter flags");
             let mut flags = IrqFlags::empty();
@@ -110,16 +113,14 @@ pub fn init_ioapic(acpi_tables: &AcpiTables<impl acpi::Handler>) {
             flags.set(IrqFlags::MASKED, false);
             flags.set(IrqFlags::LOGICAL_DEST, false);
 
-            default_entry.set_vector(0x31);
             default_entry.set_mode(ioapic::IrqMode::Fixed);
             default_entry.set_flags(flags);
             default_entry.set_dest(0);
 
-            if let Some(keyboard_gsi) = keyboard_gsi {
-                ioapic_init.set_table_entry(keyboard_gsi as u8, default_entry);
-            } else {
-                ioapic_init.set_table_entry(1, default_entry);
-            }
+            // range allowed 0x10 - 0xFE
+            default_entry.set_vector(0xFE); // tell CPU this is the source for the keyboard interrupt
+
+            ioapic_init.set_table_entry(1, default_entry);
             serial_println!("init ioapic");
         };
     }
